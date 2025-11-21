@@ -11,6 +11,14 @@ members = [
     "soroban-token-sdk",
     "soroban-token-spec",
     "stellar-asset-spec",
+
+    "soroban-ledger-rpc",
+    "soroban-ledger-meta-storage",
+    "soroban-ledger-meta-storage-cli",
+    "soroban-ledger-history-archive",
+    "soroban-ledger-snapshot-source-rpc",
+    "soroban-ledger-snapshot-source-meta",
+
     "tests/*",
 ]
 
@@ -28,6 +36,12 @@ soroban-ledger-snapshot = { version = "23.1.0", path = "soroban-ledger-snapshot"
 soroban-token-sdk = { version = "23.1.0", path = "soroban-token-sdk" }
 soroban-token-spec = { version = "23.1.0", path = "soroban-token-spec" }
 stellar-asset-spec = { version = "23.1.0", path = "stellar-asset-spec" }
+
+soroban-ledger-rpc = { version = "23.1.0", path = "soroban-ledger-rpc" }
+soroban-ledger-meta-storage = { version = "23.1.0", path = "soroban-ledger-meta-storage" }
+soroban-ledger-history-archive = { version = "23.1.0", path = "soroban-ledger-history-archive" }
+soroban-ledger-snapshot-source-rpc = { version = "23.1.0", path = "soroban-ledger-snapshot-source-rpc" }
+soroban-ledger-snapshot-source-meta = { version = "23.1.0", path = "soroban-ledger-snapshot-source-meta" }
 
 [workspace.dependencies.soroban-env-common]
 version = "=23.0.1"

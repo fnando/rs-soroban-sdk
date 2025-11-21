@@ -1774,7 +1774,7 @@ impl Env {
             .map(|p| std::path::Path::new(p).to_path_buf())
             .reduce(|p0, p1| p0.join(p1))
             .expect("test name to not be empty");
-        let dir = std::path::Path::new("test_snapshots_before");
+        let dir = std::path::Path::new("test_snapshots_source");
         let p = dir
             .join(&test_name_path)
             .with_extension(format!("{number}.json"));
