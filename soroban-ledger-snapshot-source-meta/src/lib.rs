@@ -85,10 +85,7 @@ impl MetaSnapshotSource {
         }
     }
 
-    fn fetch(
-        &self,
-        key: &LedgerKey,
-    ) -> Result<Option<LedgerEntryWithTtl>, MetaSnapshotError> {
+    fn fetch(&self, key: &LedgerKey) -> Result<Option<LedgerEntryWithTtl>, MetaSnapshotError> {
         // TODO: Consider replacing this caching into a directory with caching into a
         // LedgerSnapshot file. It would be more compatible with existing functionality.
 
@@ -251,24 +248,20 @@ impl MetaSnapshotSource {
             .current_buckets
             .iter()
             .flat_map(|b| [&b.curr, &b.snap])
-            .filter(|b| {
-                *b != "0000000000000000000000000000000000000000000000000000000000000000"
-            });
+            .filter(|b| *b != "0000000000000000000000000000000000000000000000000000000000000000");
         for bucket in buckets {
             eprintln!("loading {bucket}");
-            let bucket_read =
-                cache(cache_path.join(format!("bucket-{bucket}.xdr")), |write| {
-                    get_bucket(&self.archive_url, bucket, write)
-                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
-                })?;
+            let bucket_read = cache(cache_path.join(format!("bucket-{bucket}.xdr")), |write| {
+                get_bucket(&self.archive_url, bucket, write)
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            })?;
             let mut limited_reader = Limited::new(bucket_read, Limits::none());
             let bucket_entries_iter = parse_bucket(&mut limited_reader);
             eprintln!("searching {bucket}");
             for entry_result in bucket_entries_iter {
                 let entry = entry_result?.0;
                 match entry {
-                    BucketEntry::Liveentry(ledger_entry)
-                    | BucketEntry::Initentry(ledger_entry) => {
+                    BucketEntry::Liveentry(ledger_entry) | BucketEntry::Initentry(ledger_entry) => {
                         if ledger_entry.to_key() == *key {
                             eprintln!("returned entry (archive)");
                             return Ok(Some(LedgerEntryWithTtl {
@@ -311,9 +304,6 @@ impl SnapshotSource for MetaSnapshotSource {
         &self,
         key: &Rc<LedgerKey>,
     ) -> Result<Option<(Rc<LedgerEntry>, Option<u32>)>, HostError> {
-        Ok(self
-            .fetch(key)
-            .unwrap()
-            .map(|e| (Rc::new(e.entry), e.ttl)))
+        Ok(self.fetch(key).unwrap().map(|e| (Rc::new(e.entry), e.ttl)))
     }
 }
