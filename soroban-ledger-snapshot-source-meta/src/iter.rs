@@ -18,23 +18,14 @@ struct IteratorPosition {
     change_idx: usize,
 }
 
-/// Groups LedgerEntryChange variants by whether they represent state before or after changes
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum LedgerEntryChangeGroup {
-    /// State before changes: State.
-    Before,
-    /// Changes after: Created, Updated, Restored, Removed.
-    After,
-}
-
 #[derive(Clone, Copy, Debug)]
 pub enum ProcessingPhase {
-    /// Special phase for boundary tx: TxChangesBefore with Before group only, in forward order
+    /// Special phase for boundary tx: TxChangesBefore with State group only, in forward order
     BoundaryTxChangesBefore { tx_idx: usize },
-    /// Special phase for boundary tx: OperationsChanges with Before group only, in forward order
+    /// Special phase for boundary tx: OperationsChanges with State group only, in forward order
     BoundaryOperationsChanges { tx_idx: usize, op_idx: usize },
-    // Normal phases work backwards and only yield After (mutation) changes.
-    // Since we iterate in reverse, we see the final state first, making Before (State) entries redundant.
+    // Normal phases work backwards and only yield Mutation changes.
+    // Since we iterate in reverse, we see the final state first, making State entries redundant.
     PostTxApplyFeeProcessing { tx_idx: usize },
     TxChangesAfter { tx_idx: usize },
     OperationsChanges { tx_idx: usize, op_idx: usize },
@@ -68,17 +59,22 @@ impl ProcessingPhase {
         }
     }
 
-    fn group(&self) -> LedgerEntryChangeGroup {
+    /// Check if a change should be yielded by the iterator in this phase.
+    /// Boundary phases only yield State entries, normal phases only yield mutations.
+    fn should_yield(&self, change: &LedgerEntryChange) -> bool {
         match self {
-            // Boundary phases only look at Before group
-            Self::BoundaryTxChangesBefore { .. }
-            | Self::BoundaryOperationsChanges { .. } => LedgerEntryChangeGroup::Before,
-            // Normal phases only look at After group (mutations)
+            // Boundary phases only yield State entries
+            Self::BoundaryTxChangesBefore { .. } | Self::BoundaryOperationsChanges { .. } => {
+                matches!(change, LedgerEntryChange::State(_))
+            }
+            // Normal phases yield on mutations (non-State)
             Self::PostTxApplyFeeProcessing { .. }
             | Self::TxChangesAfter { .. }
             | Self::OperationsChanges { .. }
             | Self::TxChangesBefore { .. }
-            | Self::FeeProcessing { .. } => LedgerEntryChangeGroup::After,
+            | Self::FeeProcessing { .. } => {
+                !matches!(change, LedgerEntryChange::State(_))
+            }
         }
     }
 
@@ -200,7 +196,7 @@ impl<'a> LedgerEntryChangesIterator<'a> {
         let position = if len == 0 {
             None
         } else if let Some(ref hash) = tx_hash {
-            // Find the transaction and start from its Before group
+            // Find the transaction and start from its State group
             tx_result_meta.find_tx_by_hash(hash).map(|tx_idx| IteratorPosition {
                 phase: ProcessingPhase::starting_from_tx(tx_idx),
                 change_idx: 0,
@@ -258,14 +254,7 @@ impl<'a> Iterator for LedgerEntryChangesIterator<'a> {
                 &changes[changes.len() - 1 - pos.change_idx]
             };
 
-            // Check if this change matches the current group
-            let is_before = matches!(change, LedgerEntryChange::State(_));
-            let should_yield = match pos.phase.group() {
-                LedgerEntryChangeGroup::After => !is_before,
-                LedgerEntryChangeGroup::Before => is_before,
-            };
-
-            if !should_yield {
+            if !pos.phase.should_yield(change) {
                 // Skip this change, it belongs to the other group
                 pos.change_idx += 1;
                 continue;

@@ -28,12 +28,6 @@ Line 282 computes `changes.len() - 1 - pos.change_idx` for reverse iteration. Th
 
 **Recommendation**: Abstract this into a helper or iterator adapter, e.g., `changes.iter().rev()` vs `changes.iter()`.
 
-## 5. Rename `LedgerEntryChangeGroup::Before/After`
-
-The naming is confusing—`Before` means "State snapshot before changes" and `After` means "Created/Updated/etc." Consider:
-- `State` (or `Snapshot`) instead of `Before`
-- `Mutation` (or `Effect`) instead of `After`
-
 ## 6. Simplify `TransactionResultMetaNormalized`
 
 The five-way match on `TransactionMeta` versions (lines 343-390) is repeated multiple times.
