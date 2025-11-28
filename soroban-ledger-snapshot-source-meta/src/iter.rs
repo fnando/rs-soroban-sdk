@@ -321,55 +321,28 @@ impl<'a> TransactionResultMetasNormalized<'a> {
         }
     }
 
-    /// Extract tx_changes_before from any TransactionMeta version
     pub fn tx_changes_before(&self, index: usize) -> Option<&'a LedgerEntryChanges> {
-        match self.tx_apply_processing(index) {
-            TransactionMeta::V0(_) => None,
-            TransactionMeta::V1(m) => Some(&m.tx_changes),
-            TransactionMeta::V2(m) => Some(&m.tx_changes_before),
-            TransactionMeta::V3(m) => Some(&m.tx_changes_before),
-            TransactionMeta::V4(m) => Some(&m.tx_changes_before),
-        }
+        self.tx_apply_processing(index).tx_changes_before()
     }
 
-    /// Get the number of operations for a transaction from any TransactionMeta version
     pub fn operation_count(&self, tx_index: usize) -> usize {
-        match self.tx_apply_processing(tx_index) {
-            TransactionMeta::V0(ops) => ops.len(),
-            TransactionMeta::V1(m) => m.operations.len(),
-            TransactionMeta::V2(m) => m.operations.len(),
-            TransactionMeta::V3(m) => m.operations.len(),
-            TransactionMeta::V4(m) => m.operations.len(),
-        }
+        self.tx_apply_processing(tx_index).operation_count()
     }
 
-    /// Extract changes for a specific operation from any TransactionMeta version
     pub fn operation_changes(&self, tx_index: usize, op_index: usize) -> &'a LedgerEntryChanges {
-        match self.tx_apply_processing(tx_index) {
-            TransactionMeta::V0(ops) => &ops[op_index].changes,
-            TransactionMeta::V1(m) => &m.operations[op_index].changes,
-            TransactionMeta::V2(m) => &m.operations[op_index].changes,
-            TransactionMeta::V3(m) => &m.operations[op_index].changes,
-            TransactionMeta::V4(m) => &m.operations[op_index].changes,
-        }
+        self.tx_apply_processing(tx_index).operation_changes(op_index)
     }
 
-    fn tx_apply_processing(&self, index: usize) -> &'a TransactionMeta {
-        match self {
+    pub fn tx_changes_after(&self, index: usize) -> Option<&'a LedgerEntryChanges> {
+        self.tx_apply_processing(index).tx_changes_after()
+    }
+
+    fn tx_apply_processing(&self, index: usize) -> TransactionMetaNormalized<'a> {
+        let meta = match self {
             Self::V0(s) => &s[index].tx_apply_processing,
             Self::V1(s) => &s[index].tx_apply_processing,
-        }
-    }
-
-    /// Extract tx_changes_after from any TransactionMeta version
-    pub fn tx_changes_after(&self, index: usize) -> Option<&'a LedgerEntryChanges> {
-        match self.tx_apply_processing(index) {
-            TransactionMeta::V0(_) => None,
-            TransactionMeta::V1(_) => None,
-            TransactionMeta::V2(m) => Some(&m.tx_changes_after),
-            TransactionMeta::V3(m) => Some(&m.tx_changes_after),
-            TransactionMeta::V4(m) => Some(&m.tx_changes_after),
-        }
+        };
+        TransactionMetaNormalized(meta)
     }
 
     pub fn post_tx_apply_fee_processing(&self, index: usize) -> Option<&'a LedgerEntryChanges> {
@@ -394,5 +367,49 @@ impl<'a> TransactionResultMetasNormalized<'a> {
             }
         }
         None
+    }
+}
+
+/// Normalized view of TransactionMeta across all versions
+struct TransactionMetaNormalized<'a>(&'a TransactionMeta);
+
+impl<'a> TransactionMetaNormalized<'a> {
+    fn tx_changes_before(&self) -> Option<&'a LedgerEntryChanges> {
+        match self.0 {
+            TransactionMeta::V0(_) => None,
+            TransactionMeta::V1(m) => Some(&m.tx_changes), // TODO: Should this be before or after, or just ignored?
+            TransactionMeta::V2(m) => Some(&m.tx_changes_before),
+            TransactionMeta::V3(m) => Some(&m.tx_changes_before),
+            TransactionMeta::V4(m) => Some(&m.tx_changes_before),
+        }
+    }
+
+    fn tx_changes_after(&self) -> Option<&'a LedgerEntryChanges> {
+        match self.0 {
+            TransactionMeta::V0(_) | TransactionMeta::V1(_) => None,
+            TransactionMeta::V2(m) => Some(&m.tx_changes_after),
+            TransactionMeta::V3(m) => Some(&m.tx_changes_after),
+            TransactionMeta::V4(m) => Some(&m.tx_changes_after),
+        }
+    }
+
+    fn operation_count(&self) -> usize {
+        match self.0 {
+            TransactionMeta::V0(ops) => ops.len(),
+            TransactionMeta::V1(m) => m.operations.len(),
+            TransactionMeta::V2(m) => m.operations.len(),
+            TransactionMeta::V3(m) => m.operations.len(),
+            TransactionMeta::V4(m) => m.operations.len(),
+        }
+    }
+
+    fn operation_changes(&self, index: usize) -> &'a LedgerEntryChanges {
+        match self.0 {
+            TransactionMeta::V0(ops) => &ops[index].changes,
+            TransactionMeta::V1(m) => &m.operations[index].changes,
+            TransactionMeta::V2(m) => &m.operations[index].changes,
+            TransactionMeta::V3(m) => &m.operations[index].changes,
+            TransactionMeta::V4(m) => &m.operations[index].changes,
+        }
     }
 }

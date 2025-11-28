@@ -16,18 +16,6 @@ enum IteratorMode<'a> {
 }
 ```
 
-## 3. Replace the Complex `advance()` State Machine
-
-The `advance()` method (lines 105-195) has 14 match arms with intricate transitions. Consider a flattened representation:
-
-**Recommendation**: Pre-compute the full sequence of `(phase, group)` pairs upfront in `new()`, storing them in a `Vec`. Then `advance()` simply increments an index. This trades memory for simplicity.
-
-## 6. Simplify `TransactionResultMetaNormalized`
-
-The five-way match on `TransactionMeta` versions (lines 343-390) is repeated multiple times.
-
-**Recommendation**: Create a trait or helper struct that normalizes `TransactionMeta` once, exposing a unified interface.
-
 ## Summary of Key Structural Changes
 
 | Current | Proposed |
