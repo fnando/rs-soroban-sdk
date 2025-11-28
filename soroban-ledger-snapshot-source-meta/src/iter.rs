@@ -6,7 +6,7 @@ use soroban_sdk::xdr::{
 /// Iterator over ledger entry changes in reverse order from a LedgerCloseMeta.
 /// Within each phase, non-State changes are yielded first, then State changes.
 pub struct LedgerEntryChangesIterator<'a> {
-    tx_result_meta: TransactionResultMetaNormalized<'a>,
+    tx_result_meta: TransactionResultMetasNormalized<'a>,
     /// Current iteration position, or None if done
     position: Option<IteratorPosition>,
 }
@@ -90,7 +90,7 @@ impl ProcessingPhase {
 
     fn get_changes<'a>(
         &self,
-        components: &'a TransactionResultMetaNormalized<'a>,
+        components: &'a TransactionResultMetasNormalized<'a>,
     ) -> Option<&'a LedgerEntryChanges> {
         match self {
             Self::BoundaryTxChangesBefore { tx_idx } => components.tx_changes_before(*tx_idx),
@@ -109,7 +109,7 @@ impl ProcessingPhase {
         }
     }
 
-    fn advance(&self, components: &TransactionResultMetaNormalized) -> Option<ProcessingPhase> {
+    fn advance(&self, components: &TransactionResultMetasNormalized) -> Option<ProcessingPhase> {
         let tx_count = components.len();
         match self {
             // Boundary phases: iterate forward through Before snapshots, then switch to normal flow.
@@ -217,7 +217,7 @@ impl<'a> LedgerEntryChangesIterator<'a> {
     ///   changes), skipping the post-fee processing and all changes that occur after
     ///   the transaction executes including the changes produced from that tx.
     pub fn new(meta: &'a LedgerCloseMeta, tx_hash: Option<[u8; 32]>) -> Self {
-        let tx_result_meta = TransactionResultMetaNormalized::from(meta);
+        let tx_result_meta = TransactionResultMetasNormalized::from(meta);
         let len = tx_result_meta.len();
 
         let position = if len == 0 {
@@ -287,12 +287,12 @@ impl<'a> Iterator for LedgerEntryChangesIterator<'a> {
 }
 
 /// Extracted transaction processing components from LedgerCloseMeta
-enum TransactionResultMetaNormalized<'a> {
+enum TransactionResultMetasNormalized<'a> {
     V0(&'a [TransactionResultMeta]),
     V1(&'a [TransactionResultMetaV1]),
 }
 
-impl<'a> From<&'a LedgerCloseMeta> for TransactionResultMetaNormalized<'a> {
+impl<'a> From<&'a LedgerCloseMeta> for TransactionResultMetasNormalized<'a> {
     fn from(meta: &'a LedgerCloseMeta) -> Self {
         match meta {
             LedgerCloseMeta::V0(meta_v0) => Self::V0(&meta_v0.tx_processing),
@@ -302,11 +302,11 @@ impl<'a> From<&'a LedgerCloseMeta> for TransactionResultMetaNormalized<'a> {
     }
 }
 
-impl<'a> TransactionResultMetaNormalized<'a> {
+impl<'a> TransactionResultMetasNormalized<'a> {
     pub fn len(&self) -> usize {
         match self {
-            TransactionResultMetaNormalized::V0(slice) => slice.len(),
-            TransactionResultMetaNormalized::V1(slice) => slice.len(),
+            TransactionResultMetasNormalized::V0(slice) => slice.len(),
+            TransactionResultMetasNormalized::V1(slice) => slice.len(),
         }
     }
 
