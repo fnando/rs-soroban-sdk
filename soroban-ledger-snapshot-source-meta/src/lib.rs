@@ -168,16 +168,14 @@ impl MetaSnapshotSource {
         })?;
         let meta = parse_ledger(meta_read)?;
 
-        let changes = LedgerEntryChangesIterator::new(&meta);
-        let mut found_tx = self.tx_hash.is_none();
+        // Only pass tx_hash for the starting ledger; for earlier ledgers, iterate fully
+        let tx_hash_filter = if ledger == self.ledger {
+            self.tx_hash
+        } else {
+            None
+        };
+        let changes = LedgerEntryChangesIterator::new(&meta, tx_hash_filter);
         for (phase, tx_hash, change_key, change_entry) in changes {
-            if ledger == self.ledger && !found_tx {
-                if self.tx_hash.as_ref() == Some(&tx_hash) {
-                    found_tx = true;
-                } else {
-                    continue;
-                }
-            }
             let tx_hash_short = tx_hash
                 .iter()
                 .take(7)

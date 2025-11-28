@@ -29,6 +29,11 @@ pub(crate) enum LedgerEntryChangeGroup {
 
 #[derive(Clone, Copy, Debug)]
 pub enum ProcessingPhase {
+    /// Special phase for boundary tx: TxChangesBefore with Before group only, in forward order
+    BoundaryTxChangesBefore { tx_idx: usize },
+    /// Special phase for boundary tx: OperationsChanges with Before group only, in forward order
+    BoundaryOperationsChanges { tx_idx: usize, op_idx: usize },
+    // Other phases work backwards.
     PostTxApplyFeeProcessing { tx_idx: usize, group: LedgerEntryChangeGroup },
     TxChangesAfter { tx_idx: usize, group: LedgerEntryChangeGroup },
     OperationsChanges { tx_idx: usize, op_idx: usize, group: LedgerEntryChangeGroup },
@@ -37,13 +42,24 @@ pub enum ProcessingPhase {
 }
 
 impl ProcessingPhase {
-    fn first(tx_idx: usize) -> Self {
-        Self::PostTxApplyFeeProcessing { tx_idx, group: LedgerEntryChangeGroup::After }
+    /// Start iterating from the end of the ledger (after all txs have been applied).
+    fn starting_from_end(tx_count: usize) -> Self {
+        Self::PostTxApplyFeeProcessing { tx_idx: tx_count - 1, group: LedgerEntryChangeGroup::After }
+    }
+
+    /// Start iterating from just before a specific transaction was applied.
+    /// This starts at the tx's TxChangesBefore with only the Before group,
+    /// then proceeds to OperationsChanges Before group, both in forward order.
+    /// This captures the state of entries just before the tx modified them.
+    fn starting_from_tx(boundary_tx_idx: usize) -> Self {
+        Self::BoundaryTxChangesBefore { tx_idx: boundary_tx_idx }
     }
 
     fn tx_idx(&self) -> usize {
         match self {
-            Self::PostTxApplyFeeProcessing { tx_idx, .. }
+            Self::BoundaryTxChangesBefore { tx_idx }
+            | Self::BoundaryOperationsChanges { tx_idx, .. }
+            | Self::PostTxApplyFeeProcessing { tx_idx, .. }
             | Self::TxChangesAfter { tx_idx, .. }
             | Self::OperationsChanges { tx_idx, .. }
             | Self::TxChangesBefore { tx_idx, .. }
@@ -53,6 +69,10 @@ impl ProcessingPhase {
 
     fn group(&self) -> LedgerEntryChangeGroup {
         match self {
+            // Boundary phases only look at Before group
+            Self::BoundaryTxChangesBefore { .. }
+            | Self::BoundaryOperationsChanges { .. } => LedgerEntryChangeGroup::Before,
+            // Other phases look at both After and Before groups
             Self::PostTxApplyFeeProcessing { group, .. }
             | Self::TxChangesAfter { group, .. }
             | Self::OperationsChanges { group, .. }
@@ -66,6 +86,10 @@ impl ProcessingPhase {
         components: &'a TransactionResultMetaNormalized<'a>,
     ) -> Option<&'a LedgerEntryChanges> {
         match self {
+            Self::BoundaryTxChangesBefore { tx_idx } => components.tx_changes_before(*tx_idx),
+            Self::BoundaryOperationsChanges { tx_idx, op_idx } => {
+                Some(components.operation_changes(*tx_idx, *op_idx))
+            }
             Self::PostTxApplyFeeProcessing { tx_idx, .. } => {
                 components.post_tx_apply_fee_processing(*tx_idx)
             }
@@ -81,6 +105,35 @@ impl ProcessingPhase {
     fn advance(&self, components: &TransactionResultMetaNormalized) -> Option<ProcessingPhase> {
         let tx_count = components.len();
         match self {
+            // Boundary phases: iterate forward through Before snapshots, then switch to normal flow.
+            Self::BoundaryTxChangesBefore { tx_idx } => {
+                let op_count = components.operation_count(*tx_idx);
+                Some(if op_count > 0 {
+                    Self::BoundaryOperationsChanges { tx_idx: *tx_idx, op_idx: 0 }
+                } else {
+                    // No ops, go to previous tx with normal flow
+                    tx_idx
+                        .checked_sub(1)
+                        .map_or(Self::FeeProcessing { tx_idx: tx_count - 1, group: LedgerEntryChangeGroup::After }, |i| {
+                            Self::TxChangesAfter { tx_idx: i, group: LedgerEntryChangeGroup::After }
+                        })
+                })
+            }
+            Self::BoundaryOperationsChanges { tx_idx, op_idx } => {
+                let op_count = components.operation_count(*tx_idx);
+                if *op_idx + 1 < op_count {
+                    // More ops to process in forward order
+                    Some(Self::BoundaryOperationsChanges { tx_idx: *tx_idx, op_idx: op_idx + 1 })
+                } else {
+                    // Done with boundary tx, go to previous tx with normal flow
+                    Some(tx_idx
+                        .checked_sub(1)
+                        .map_or(Self::FeeProcessing { tx_idx: tx_count - 1, group: LedgerEntryChangeGroup::After }, |i| {
+                            Self::TxChangesAfter { tx_idx: i, group: LedgerEntryChangeGroup::After }
+                        }))
+                }
+            }
+            // Normal phases: iterate backwards through After then Before state.
             Self::PostTxApplyFeeProcessing { tx_idx, group: LedgerEntryChangeGroup::After } => {
                 Some(Self::PostTxApplyFeeProcessing { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::Before })
             }
@@ -157,13 +210,32 @@ fn extract_key_entry(change: &LedgerEntryChange) -> (LedgerKey, Option<LedgerEnt
 
 impl<'a> LedgerEntryChangesIterator<'a> {
     /// Create a new iterator over ledger entry changes
-    pub fn new(meta: &'a LedgerCloseMeta) -> Self {
+    ///
+    /// # Arguments
+    /// * `meta` - The ledger close meta to iterate over
+    /// * `tx_hash` - Optional transaction hash to start from. When set, the iterator
+    ///   starts from just before that transaction was applied (at the tx's "Before"
+    ///   changes), skipping the post-fee processing and all changes that occur after
+    ///   the transaction executes including the changes produced from that tx.
+    pub fn new(meta: &'a LedgerCloseMeta, tx_hash: Option<[u8; 32]>) -> Self {
         let tx_result_meta = TransactionResultMetaNormalized::from(meta);
         let len = tx_result_meta.len();
-        let position = (len > 0).then(|| IteratorPosition {
-            phase: ProcessingPhase::first(len - 1),
-            change_idx: 0,
-        });
+
+        let position = if len == 0 {
+            None
+        } else if let Some(ref hash) = tx_hash {
+            // Find the transaction and start from its Before group
+            tx_result_meta.find_tx_by_hash(hash).map(|tx_idx| IteratorPosition {
+                phase: ProcessingPhase::starting_from_tx(tx_idx),
+                change_idx: 0,
+            })
+        } else {
+            Some(IteratorPosition {
+                phase: ProcessingPhase::starting_from_end(len),
+                change_idx: 0,
+            })
+        };
+
         Self { tx_result_meta, position }
     }
 }
@@ -198,8 +270,17 @@ impl<'a> Iterator for LedgerEntryChangesIterator<'a> {
                 continue;
             }
 
-            // Get the change in reverse order
-            let change = &changes[changes.len() - 1 - pos.change_idx];
+            // Boundary phases iterate in forward order, normal phases in reverse
+            let is_boundary = matches!(
+                pos.phase,
+                ProcessingPhase::BoundaryTxChangesBefore { .. }
+                    | ProcessingPhase::BoundaryOperationsChanges { .. }
+            );
+            let change = if is_boundary {
+                &changes[pos.change_idx]
+            } else {
+                &changes[changes.len() - 1 - pos.change_idx]
+            };
 
             // Check if this change matches the current group
             let is_before = matches!(change, LedgerEntryChange::State(_));
@@ -321,5 +402,15 @@ impl<'a> TransactionResultMetaNormalized<'a> {
             Self::V0(slice) => &slice[index].result.transaction_hash.0,
             Self::V1(slice) => &slice[index].result.transaction_hash.0,
         }
+    }
+
+    /// Find the index of a transaction by its hash
+    pub fn find_tx_by_hash(&self, hash: &[u8; 32]) -> Option<usize> {
+        for i in 0..self.len() {
+            if self.tx_hash(i) == hash {
+                return Some(i);
+            }
+        }
+        None
     }
 }
