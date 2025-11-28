@@ -1,0 +1,58 @@
+# Recommendations for Simplifying `iter.rs`
+
+## 1. Separate "Boundary" Logic from the Main State Machine
+
+The `ProcessingPhase` enum conflates two different iteration modes:
+- **Boundary mode**: Forward iteration through `Before` groups only (lines 32-35)
+- **Normal mode**: Reverse iteration through both groups (lines 37-41)
+
+This dual-purpose design causes complexity in `advance()` (lines 105-195) and `next()` (lines 273-283).
+
+**Recommendation**: Create two separate iterator types:
+```rust
+enum IteratorMode<'a> {
+    Boundary(BoundaryIterator<'a>),  // Forward, Before-only
+    Normal(ReverseIterator<'a>),     // Reverse, both groups
+}
+```
+
+## 2. Remove Before/After Group Handling in Normal Flow
+
+Currently, the normal flow iterates through both `After` and `Before` groups for each phase. However, every `Before` (State) entry is paired with a corresponding `After` entry (Created/Updated/Removed/Restored) for the same ledger entry. Since the iterator processes in reverse order, it will always see the `After` state first, making the `Before` state redundant—we already know the final state of that entry.
+
+**Recommendation**: In the normal (reverse) flow, only iterate through `After` changes and skip `Before` entirely. This eliminates the group-based state machine for the normal flow, removing half the phase transitions and the group filtering logic. The boundary (forward) flow should continue to iterate only `Before` changes as it currently does.
+
+## 3. Replace the Complex `advance()` State Machine
+
+The `advance()` method (lines 105-195) has 14 match arms with intricate transitions. Consider a flattened representation:
+
+**Recommendation**: Pre-compute the full sequence of `(phase, group)` pairs upfront in `new()`, storing them in a `Vec`. Then `advance()` simply increments an index. This trades memory for simplicity.
+
+## 4. Extract the Reverse-Index Logic
+
+Line 282 computes `changes.len() - 1 - pos.change_idx` for reverse iteration. This appears alongside forward iteration logic (line 280), adding cognitive load.
+
+**Recommendation**: Abstract this into a helper or iterator adapter, e.g., `changes.iter().rev()` vs `changes.iter()`.
+
+## 5. Rename `LedgerEntryChangeGroup::Before/After`
+
+The naming is confusing—`Before` means "State snapshot before changes" and `After` means "Created/Updated/etc." Consider:
+- `State` (or `Snapshot`) instead of `Before`
+- `Mutation` (or `Effect`) instead of `After`
+
+## 6. Simplify `TransactionResultMetaNormalized`
+
+The five-way match on `TransactionMeta` versions (lines 343-390) is repeated multiple times.
+
+**Recommendation**: Create a trait or helper struct that normalizes `TransactionMeta` once, exposing a unified interface.
+
+## Summary of Key Structural Changes
+
+| Current | Proposed |
+|---------|----------|
+| One iterator with boundary/normal modes | Two iterator types composed together |
+| Group-based skipping during iteration | Normal flow: After only; Boundary flow: Before only |
+| Complex `advance()` state machine | Pre-computed phase sequence or simpler transition table |
+| Repeated TransactionMeta version matching | Normalized accessor trait/struct |
+
+These changes would reduce the ~415 lines to roughly 250-300 lines while making the control flow linear and predictable.
