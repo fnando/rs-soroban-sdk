@@ -22,12 +22,6 @@ The `advance()` method (lines 105-195) has 14 match arms with intricate transiti
 
 **Recommendation**: Pre-compute the full sequence of `(phase, group)` pairs upfront in `new()`, storing them in a `Vec`. Then `advance()` simply increments an index. This trades memory for simplicity.
 
-## 4. Extract the Reverse-Index Logic
-
-Line 282 computes `changes.len() - 1 - pos.change_idx` for reverse iteration. This appears alongside forward iteration logic (line 280), adding cognitive load.
-
-**Recommendation**: Abstract this into a helper or iterator adapter, e.g., `changes.iter().rev()` vs `changes.iter()`.
-
 ## 6. Simplify `TransactionResultMetaNormalized`
 
 The five-way match on `TransactionMeta` versions (lines 343-390) is repeated multiple times.

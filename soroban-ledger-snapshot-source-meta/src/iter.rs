@@ -59,6 +59,16 @@ impl ProcessingPhase {
         }
     }
 
+    /// Get the iteration direction for this phase
+    fn direction(&self) -> IterDirection {
+        match self {
+            Self::BoundaryTxChangesBefore { .. } | Self::BoundaryOperationsChanges { .. } => {
+                IterDirection::Forward
+            }
+            _ => IterDirection::Reverse,
+        }
+    }
+
     /// Check if a change should be yielded by the iterator in this phase.
     /// Boundary phases only yield State entries, normal phases only yield mutations.
     fn should_yield(&self, change: &LedgerEntryChange) -> bool {
@@ -180,6 +190,23 @@ fn extract_key_entry(change: &LedgerEntryChange) -> (LedgerKey, Option<LedgerEnt
     }
 }
 
+/// Direction of iteration through changes
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum IterDirection {
+    Forward,
+    Reverse,
+}
+
+impl IterDirection {
+    /// Get the element at the given logical index from changes
+    fn get(self, changes: &LedgerEntryChanges, idx: usize) -> &LedgerEntryChange {
+        match self {
+            Self::Forward => &changes[idx],
+            Self::Reverse => &changes[changes.len() - 1 - idx],
+        }
+    }
+}
+
 impl<'a> LedgerEntryChangesIterator<'a> {
     /// Create a new iterator over ledger entry changes
     ///
@@ -242,17 +269,7 @@ impl<'a> Iterator for LedgerEntryChangesIterator<'a> {
                 continue;
             }
 
-            // Boundary phases iterate in forward order, normal phases in reverse
-            let is_boundary = matches!(
-                pos.phase,
-                ProcessingPhase::BoundaryTxChangesBefore { .. }
-                    | ProcessingPhase::BoundaryOperationsChanges { .. }
-            );
-            let change = if is_boundary {
-                &changes[pos.change_idx]
-            } else {
-                &changes[changes.len() - 1 - pos.change_idx]
-            };
+            let change = pos.phase.direction().get(changes, pos.change_idx);
 
             if !pos.phase.should_yield(change) {
                 // Skip this change, it belongs to the other group
