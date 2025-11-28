@@ -16,12 +16,6 @@ enum IteratorMode<'a> {
 }
 ```
 
-## 2. Remove Before/After Group Handling in Normal Flow
-
-Currently, the normal flow iterates through both `After` and `Before` groups for each phase. However, every `Before` (State) entry is paired with a corresponding `After` entry (Created/Updated/Removed/Restored) for the same ledger entry. Since the iterator processes in reverse order, it will always see the `After` state first, making the `Before` state redundant—we already know the final state of that entry.
-
-**Recommendation**: In the normal (reverse) flow, only iterate through `After` changes and skip `Before` entirely. This eliminates the group-based state machine for the normal flow, removing half the phase transitions and the group filtering logic. The boundary (forward) flow should continue to iterate only `Before` changes as it currently does.
-
 ## 3. Replace the Complex `advance()` State Machine
 
 The `advance()` method (lines 105-195) has 14 match arms with intricate transitions. Consider a flattened representation:

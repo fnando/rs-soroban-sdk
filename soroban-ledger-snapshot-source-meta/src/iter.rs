@@ -20,7 +20,7 @@ struct IteratorPosition {
 
 /// Groups LedgerEntryChange variants by whether they represent state before or after changes
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum LedgerEntryChangeGroup {
+enum LedgerEntryChangeGroup {
     /// State before changes: State.
     Before,
     /// Changes after: Created, Updated, Restored, Removed.
@@ -33,18 +33,19 @@ pub enum ProcessingPhase {
     BoundaryTxChangesBefore { tx_idx: usize },
     /// Special phase for boundary tx: OperationsChanges with Before group only, in forward order
     BoundaryOperationsChanges { tx_idx: usize, op_idx: usize },
-    // Other phases work backwards.
-    PostTxApplyFeeProcessing { tx_idx: usize, group: LedgerEntryChangeGroup },
-    TxChangesAfter { tx_idx: usize, group: LedgerEntryChangeGroup },
-    OperationsChanges { tx_idx: usize, op_idx: usize, group: LedgerEntryChangeGroup },
-    TxChangesBefore { tx_idx: usize, group: LedgerEntryChangeGroup },
-    FeeProcessing { tx_idx: usize, group: LedgerEntryChangeGroup },
+    // Normal phases work backwards and only yield After (mutation) changes.
+    // Since we iterate in reverse, we see the final state first, making Before (State) entries redundant.
+    PostTxApplyFeeProcessing { tx_idx: usize },
+    TxChangesAfter { tx_idx: usize },
+    OperationsChanges { tx_idx: usize, op_idx: usize },
+    TxChangesBefore { tx_idx: usize },
+    FeeProcessing { tx_idx: usize },
 }
 
 impl ProcessingPhase {
     /// Start iterating from the end of the ledger (after all txs have been applied).
     fn starting_from_end(tx_count: usize) -> Self {
-        Self::PostTxApplyFeeProcessing { tx_idx: tx_count - 1, group: LedgerEntryChangeGroup::After }
+        Self::PostTxApplyFeeProcessing { tx_idx: tx_count - 1 }
     }
 
     /// Start iterating from just before a specific transaction was applied.
@@ -59,11 +60,11 @@ impl ProcessingPhase {
         match self {
             Self::BoundaryTxChangesBefore { tx_idx }
             | Self::BoundaryOperationsChanges { tx_idx, .. }
-            | Self::PostTxApplyFeeProcessing { tx_idx, .. }
-            | Self::TxChangesAfter { tx_idx, .. }
+            | Self::PostTxApplyFeeProcessing { tx_idx }
+            | Self::TxChangesAfter { tx_idx }
             | Self::OperationsChanges { tx_idx, .. }
-            | Self::TxChangesBefore { tx_idx, .. }
-            | Self::FeeProcessing { tx_idx, .. } => *tx_idx,
+            | Self::TxChangesBefore { tx_idx }
+            | Self::FeeProcessing { tx_idx } => *tx_idx,
         }
     }
 
@@ -72,12 +73,12 @@ impl ProcessingPhase {
             // Boundary phases only look at Before group
             Self::BoundaryTxChangesBefore { .. }
             | Self::BoundaryOperationsChanges { .. } => LedgerEntryChangeGroup::Before,
-            // Other phases look at both After and Before groups
-            Self::PostTxApplyFeeProcessing { group, .. }
-            | Self::TxChangesAfter { group, .. }
-            | Self::OperationsChanges { group, .. }
-            | Self::TxChangesBefore { group, .. }
-            | Self::FeeProcessing { group, .. } => *group,
+            // Normal phases only look at After group (mutations)
+            Self::PostTxApplyFeeProcessing { .. }
+            | Self::TxChangesAfter { .. }
+            | Self::OperationsChanges { .. }
+            | Self::TxChangesBefore { .. }
+            | Self::FeeProcessing { .. } => LedgerEntryChangeGroup::After,
         }
     }
 
@@ -90,15 +91,15 @@ impl ProcessingPhase {
             Self::BoundaryOperationsChanges { tx_idx, op_idx } => {
                 Some(components.operation_changes(*tx_idx, *op_idx))
             }
-            Self::PostTxApplyFeeProcessing { tx_idx, .. } => {
+            Self::PostTxApplyFeeProcessing { tx_idx } => {
                 components.post_tx_apply_fee_processing(*tx_idx)
             }
-            Self::TxChangesAfter { tx_idx, .. } => components.tx_changes_after(*tx_idx),
-            Self::OperationsChanges { tx_idx, op_idx, .. } => {
+            Self::TxChangesAfter { tx_idx } => components.tx_changes_after(*tx_idx),
+            Self::OperationsChanges { tx_idx, op_idx } => {
                 Some(components.operation_changes(*tx_idx, *op_idx))
             }
-            Self::TxChangesBefore { tx_idx, .. } => components.tx_changes_before(*tx_idx),
-            Self::FeeProcessing { tx_idx, .. } => Some(components.fee_processing(*tx_idx)),
+            Self::TxChangesBefore { tx_idx } => components.tx_changes_before(*tx_idx),
+            Self::FeeProcessing { tx_idx } => Some(components.fee_processing(*tx_idx)),
         }
     }
 
@@ -114,8 +115,8 @@ impl ProcessingPhase {
                     // No ops, go to previous tx with normal flow
                     tx_idx
                         .checked_sub(1)
-                        .map_or(Self::FeeProcessing { tx_idx: tx_count - 1, group: LedgerEntryChangeGroup::After }, |i| {
-                            Self::TxChangesAfter { tx_idx: i, group: LedgerEntryChangeGroup::After }
+                        .map_or(Self::FeeProcessing { tx_idx: tx_count - 1 }, |i| {
+                            Self::TxChangesAfter { tx_idx: i }
                         })
                 })
             }
@@ -128,68 +129,43 @@ impl ProcessingPhase {
                     // Done with boundary tx, go to previous tx with normal flow
                     Some(tx_idx
                         .checked_sub(1)
-                        .map_or(Self::FeeProcessing { tx_idx: tx_count - 1, group: LedgerEntryChangeGroup::After }, |i| {
-                            Self::TxChangesAfter { tx_idx: i, group: LedgerEntryChangeGroup::After }
+                        .map_or(Self::FeeProcessing { tx_idx: tx_count - 1 }, |i| {
+                            Self::TxChangesAfter { tx_idx: i }
                         }))
                 }
             }
-            // Normal phases: iterate backwards through After then Before state.
-            Self::PostTxApplyFeeProcessing { tx_idx, group: LedgerEntryChangeGroup::After } => {
-                Some(Self::PostTxApplyFeeProcessing { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::Before })
-            }
-            Self::PostTxApplyFeeProcessing { tx_idx, group: LedgerEntryChangeGroup::Before } => {
+            // Normal phases: iterate backwards, only yielding After (mutation) changes.
+            Self::PostTxApplyFeeProcessing { tx_idx } => {
                 Some(tx_idx
                     .checked_sub(1)
-                    .map_or(Self::TxChangesAfter { tx_idx: tx_count - 1, group: LedgerEntryChangeGroup::After }, |i| {
-                        Self::PostTxApplyFeeProcessing { tx_idx: i, group: LedgerEntryChangeGroup::After }
+                    .map_or(Self::TxChangesAfter { tx_idx: tx_count - 1 }, |i| {
+                        Self::PostTxApplyFeeProcessing { tx_idx: i }
                     }))
             }
-            Self::TxChangesAfter { tx_idx, group: LedgerEntryChangeGroup::After } => {
-                Some(Self::TxChangesAfter { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::Before })
-            }
-            Self::TxChangesAfter { tx_idx, group: LedgerEntryChangeGroup::Before } => {
+            Self::TxChangesAfter { tx_idx } => {
                 let op_count = components.operation_count(*tx_idx);
                 Some(if op_count > 0 {
-                    Self::OperationsChanges {
-                        tx_idx: *tx_idx,
-                        op_idx: op_count - 1,
-                        group: LedgerEntryChangeGroup::After,
-                    }
+                    Self::OperationsChanges { tx_idx: *tx_idx, op_idx: op_count - 1 }
                 } else {
-                    Self::TxChangesBefore { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::After }
+                    Self::TxChangesBefore { tx_idx: *tx_idx }
                 })
             }
-            Self::OperationsChanges { tx_idx, op_idx, group: LedgerEntryChangeGroup::After } => {
-                Some(Self::OperationsChanges { tx_idx: *tx_idx, op_idx: *op_idx, group: LedgerEntryChangeGroup::Before })
-            }
-            Self::OperationsChanges { tx_idx, op_idx, group: LedgerEntryChangeGroup::Before } => {
+            Self::OperationsChanges { tx_idx, op_idx } => {
                 Some(op_idx
                     .checked_sub(1)
-                    .map_or(Self::TxChangesBefore { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::After }, |i| {
-                        Self::OperationsChanges {
-                            tx_idx: *tx_idx,
-                            op_idx: i,
-                            group: LedgerEntryChangeGroup::After,
-                        }
+                    .map_or(Self::TxChangesBefore { tx_idx: *tx_idx }, |i| {
+                        Self::OperationsChanges { tx_idx: *tx_idx, op_idx: i }
                     }))
             }
-            Self::TxChangesBefore { tx_idx, group: LedgerEntryChangeGroup::After } => {
-                Some(Self::TxChangesBefore { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::Before })
-            }
-            Self::TxChangesBefore { tx_idx, group: LedgerEntryChangeGroup::Before } => {
+            Self::TxChangesBefore { tx_idx } => {
                 Some(tx_idx
                     .checked_sub(1)
-                    .map_or(Self::FeeProcessing { tx_idx: tx_count - 1, group: LedgerEntryChangeGroup::After }, |i| {
-                        Self::TxChangesAfter { tx_idx: i, group: LedgerEntryChangeGroup::After }
+                    .map_or(Self::FeeProcessing { tx_idx: tx_count - 1 }, |i| {
+                        Self::TxChangesAfter { tx_idx: i }
                     }))
             }
-            Self::FeeProcessing { tx_idx, group: LedgerEntryChangeGroup::After } => {
-                Some(Self::FeeProcessing { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::Before })
-            }
-            Self::FeeProcessing { tx_idx, group: LedgerEntryChangeGroup::Before } => {
-                tx_idx
-                    .checked_sub(1)
-                    .map(|i| Self::FeeProcessing { tx_idx: i, group: LedgerEntryChangeGroup::After })
+            Self::FeeProcessing { tx_idx } => {
+                tx_idx.checked_sub(1).map(|i| Self::FeeProcessing { tx_idx: i })
             }
         }
     }
