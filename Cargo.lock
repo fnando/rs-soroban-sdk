@@ -2461,7 +2461,7 @@ dependencies = [
 
 [[package]]
 name = "soroban-ledger-history-archive"
-version = "23.1.0"
+version = "23.2.1"
 dependencies = [
  "flate2",
  "reqwest",
@@ -2474,7 +2474,7 @@ dependencies = [
 
 [[package]]
 name = "soroban-ledger-meta-storage"
-version = "23.1.0"
+version = "23.2.1"
 dependencies = [
  "reqwest",
  "serde",
@@ -2486,7 +2486,7 @@ dependencies = [
 
 [[package]]
 name = "soroban-ledger-meta-storage-cli"
-version = "23.1.0"
+version = "23.2.1"
 dependencies = [
  "clap",
  "serde_json",
@@ -2496,7 +2496,7 @@ dependencies = [
 
 [[package]]
 name = "soroban-ledger-rpc"
-version = "23.1.0"
+version = "23.2.1"
 dependencies = [
  "reqwest",
  "serde",
@@ -2520,7 +2520,7 @@ dependencies = [
 
 [[package]]
 name = "soroban-ledger-snapshot-source-meta"
-version = "23.1.0"
+version = "23.2.1"
 dependencies = [
  "directories",
  "fs2",
@@ -2536,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "soroban-ledger-snapshot-source-rpc"
-version = "23.1.0"
+version = "23.2.1"
 dependencies = [
  "soroban-ledger-rpc",
  "soroban-sdk",
@@ -2914,7 +2914,7 @@ dependencies = [
 
 [[package]]
 name = "test_fork"
-version = "23.1.0"
+version = "23.2.1"
 dependencies = [
  "bytes-lit",
  "soroban-ledger-snapshot-source-meta",
@@ -2924,7 +2924,7 @@ dependencies = [
 
 [[package]]
 name = "test_fork_rpc"
-version = "23.1.0"
+version = "23.2.1"
 dependencies = [
  "soroban-ledger-snapshot-source-rpc",
  "soroban-sdk",
