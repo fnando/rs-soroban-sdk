@@ -168,9 +168,9 @@ impl MetaSnapshotSource {
         })?;
         let meta = parse_ledger(meta_read)?;
 
-        let changes = LedgerEntryChangesIterator::new(&meta, ledger == self.ledger);
+        let changes = LedgerEntryChangesIterator::new(&meta);
         let mut found_tx = self.tx_hash.is_none();
-        for (tx_hash, change_key, change_entry, _phase) in changes {
+        for (phase, tx_hash, change_key, change_entry) in changes {
             if ledger == self.ledger && !found_tx {
                 if self.tx_hash.as_ref() == Some(&tx_hash) {
                     found_tx = true;
@@ -178,12 +178,12 @@ impl MetaSnapshotSource {
                     continue;
                 }
             }
-            let _tx_hash_short = tx_hash
+            let tx_hash_short = tx_hash
                 .iter()
                 .take(7)
                 .map(|b| format!("{:02x}", b))
                 .collect::<String>();
-            eprintln!("current phase: {:?}, tx_hash: {}", _phase, _tx_hash_short);
+            eprintln!("current phase: {:?}, tx_hash: {}", phase, tx_hash_short);
             if &change_key == key {
                 if let Some(entry) = change_entry {
                     eprintln!("returned entry (meta)");

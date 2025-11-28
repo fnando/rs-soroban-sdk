@@ -30,7 +30,7 @@ mod test {
             .unwrap()
             .parent()
             .unwrap()
-            .join("test_snapshot_source_cache")
+            .join("tests-snapshot-source")
             .join("pubnet");
         let meta = MetaSnapshotSource::new(
             meta_url,

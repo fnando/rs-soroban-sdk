@@ -3,113 +3,140 @@ use soroban_sdk::xdr::{
     TransactionMeta, TransactionResultMeta, TransactionResultMetaV1,
 };
 
-/// Iterator over ledger entry changes in reverse order from a LedgerCloseMeta
+/// Iterator over ledger entry changes in reverse order from a LedgerCloseMeta.
+/// Within each phase, non-State changes are yielded first, then State changes.
 pub struct LedgerEntryChangesIterator<'a> {
-    components: TransactionProcessingComponents<'a>,
-    state: IteratorState,
+    tx_result_meta: TransactionResultMetaNormalized<'a>,
+    /// Current iteration position, or None if done
+    position: Option<IteratorPosition>,
 }
 
-enum IteratorState {
-    Processing {
-        phase: ProcessingPhase,
-        change_idx: usize,
-    },
-    Done,
+/// Current position within the iteration
+#[derive(Clone, Copy, Debug)]
+struct IteratorPosition {
+    phase: ProcessingPhase,
+    change_idx: usize,
+}
+
+/// Groups LedgerEntryChange variants by whether they represent state before or after changes
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LedgerEntryChangeGroup {
+    /// State before changes: State.
+    Before,
+    /// Changes after: Created, Updated, Restored, Removed.
+    After,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum ProcessingPhase {
-    PostTxApplyFeeProcessing { tx_idx: usize },
-    TxChangesAfter { tx_idx: usize },
-    OperationsChanges { tx_idx: usize, op_idx: usize },
-    TxChangesBefore { tx_idx: usize },
-    FeeProcessing { tx_idx: usize },
+    PostTxApplyFeeProcessing { tx_idx: usize, group: LedgerEntryChangeGroup },
+    TxChangesAfter { tx_idx: usize, group: LedgerEntryChangeGroup },
+    OperationsChanges { tx_idx: usize, op_idx: usize, group: LedgerEntryChangeGroup },
+    TxChangesBefore { tx_idx: usize, group: LedgerEntryChangeGroup },
+    FeeProcessing { tx_idx: usize, group: LedgerEntryChangeGroup },
 }
 
 impl ProcessingPhase {
+    fn first(tx_idx: usize) -> Self {
+        Self::PostTxApplyFeeProcessing { tx_idx, group: LedgerEntryChangeGroup::After }
+    }
+
     fn tx_idx(&self) -> usize {
         match self {
-            ProcessingPhase::PostTxApplyFeeProcessing { tx_idx } => *tx_idx,
-            ProcessingPhase::TxChangesAfter { tx_idx } => *tx_idx,
-            ProcessingPhase::OperationsChanges { tx_idx, .. } => *tx_idx,
-            ProcessingPhase::TxChangesBefore { tx_idx } => *tx_idx,
-            ProcessingPhase::FeeProcessing { tx_idx } => *tx_idx,
+            Self::PostTxApplyFeeProcessing { tx_idx, .. }
+            | Self::TxChangesAfter { tx_idx, .. }
+            | Self::OperationsChanges { tx_idx, .. }
+            | Self::TxChangesBefore { tx_idx, .. }
+            | Self::FeeProcessing { tx_idx, .. } => *tx_idx,
+        }
+    }
+
+    fn group(&self) -> LedgerEntryChangeGroup {
+        match self {
+            Self::PostTxApplyFeeProcessing { group, .. }
+            | Self::TxChangesAfter { group, .. }
+            | Self::OperationsChanges { group, .. }
+            | Self::TxChangesBefore { group, .. }
+            | Self::FeeProcessing { group, .. } => *group,
         }
     }
 
     fn get_changes<'a>(
         &self,
-        components: &'a TransactionProcessingComponents<'a>,
+        components: &'a TransactionResultMetaNormalized<'a>,
     ) -> Option<&'a LedgerEntryChanges> {
         match self {
-            ProcessingPhase::PostTxApplyFeeProcessing { tx_idx } => {
+            Self::PostTxApplyFeeProcessing { tx_idx, .. } => {
                 components.post_tx_apply_fee_processing(*tx_idx)
             }
-            ProcessingPhase::TxChangesAfter { tx_idx } => components.tx_changes_after(*tx_idx),
-            ProcessingPhase::OperationsChanges { tx_idx, op_idx } => {
+            Self::TxChangesAfter { tx_idx, .. } => components.tx_changes_after(*tx_idx),
+            Self::OperationsChanges { tx_idx, op_idx, .. } => {
                 Some(components.operation_changes(*tx_idx, *op_idx))
             }
-            ProcessingPhase::TxChangesBefore { tx_idx } => components.tx_changes_before(*tx_idx),
-            ProcessingPhase::FeeProcessing { tx_idx } => Some(components.fee_processing(*tx_idx)),
+            Self::TxChangesBefore { tx_idx, .. } => components.tx_changes_before(*tx_idx),
+            Self::FeeProcessing { tx_idx, .. } => Some(components.fee_processing(*tx_idx)),
         }
     }
 
-    fn advance(&self, components: &TransactionProcessingComponents) -> Option<ProcessingPhase> {
+    fn advance(&self, components: &TransactionResultMetaNormalized) -> Option<ProcessingPhase> {
+        let tx_count = components.len();
         match self {
-            ProcessingPhase::PostTxApplyFeeProcessing { tx_idx } => {
-                if *tx_idx > 0 {
-                    let prev_tx_idx = tx_idx - 1;
-                    Some(ProcessingPhase::PostTxApplyFeeProcessing {
-                        tx_idx: prev_tx_idx,
-                    })
-                } else {
-                    Some(ProcessingPhase::TxChangesAfter {
-                        tx_idx: components.len() - 1,
-                    })
-                }
+            Self::PostTxApplyFeeProcessing { tx_idx, group: LedgerEntryChangeGroup::After } => {
+                Some(Self::PostTxApplyFeeProcessing { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::Before })
             }
-            ProcessingPhase::TxChangesAfter { tx_idx } => {
-                if components.operation_count(*tx_idx) > 0 {
-                    Some(ProcessingPhase::OperationsChanges {
+            Self::PostTxApplyFeeProcessing { tx_idx, group: LedgerEntryChangeGroup::Before } => {
+                Some(tx_idx
+                    .checked_sub(1)
+                    .map_or(Self::TxChangesAfter { tx_idx: tx_count - 1, group: LedgerEntryChangeGroup::After }, |i| {
+                        Self::PostTxApplyFeeProcessing { tx_idx: i, group: LedgerEntryChangeGroup::After }
+                    }))
+            }
+            Self::TxChangesAfter { tx_idx, group: LedgerEntryChangeGroup::After } => {
+                Some(Self::TxChangesAfter { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::Before })
+            }
+            Self::TxChangesAfter { tx_idx, group: LedgerEntryChangeGroup::Before } => {
+                let op_count = components.operation_count(*tx_idx);
+                Some(if op_count > 0 {
+                    Self::OperationsChanges {
                         tx_idx: *tx_idx,
-                        op_idx: components.operation_count(*tx_idx).saturating_sub(1),
-                    })
+                        op_idx: op_count - 1,
+                        group: LedgerEntryChangeGroup::After,
+                    }
                 } else {
-                    Some(ProcessingPhase::TxChangesBefore { tx_idx: *tx_idx })
-                }
+                    Self::TxChangesBefore { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::After }
+                })
             }
-            ProcessingPhase::OperationsChanges { tx_idx, op_idx } => {
-                if *op_idx > 0 {
-                    let prev_op_idx = op_idx - 1;
-                    Some(ProcessingPhase::OperationsChanges {
-                        tx_idx: *tx_idx,
-                        op_idx: prev_op_idx,
-                    })
-                } else {
-                    Some(ProcessingPhase::TxChangesBefore { tx_idx: *tx_idx })
-                }
+            Self::OperationsChanges { tx_idx, op_idx, group: LedgerEntryChangeGroup::After } => {
+                Some(Self::OperationsChanges { tx_idx: *tx_idx, op_idx: *op_idx, group: LedgerEntryChangeGroup::Before })
             }
-            ProcessingPhase::TxChangesBefore { tx_idx } => {
-                if *tx_idx > 0 {
-                    let prev_tx_idx = tx_idx - 1;
-                    Some(ProcessingPhase::TxChangesAfter {
-                        tx_idx: prev_tx_idx,
-                    })
-                } else {
-                    Some(ProcessingPhase::FeeProcessing {
-                        tx_idx: components.len() - 1,
-                    })
-                }
+            Self::OperationsChanges { tx_idx, op_idx, group: LedgerEntryChangeGroup::Before } => {
+                Some(op_idx
+                    .checked_sub(1)
+                    .map_or(Self::TxChangesBefore { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::After }, |i| {
+                        Self::OperationsChanges {
+                            tx_idx: *tx_idx,
+                            op_idx: i,
+                            group: LedgerEntryChangeGroup::After,
+                        }
+                    }))
             }
-            ProcessingPhase::FeeProcessing { tx_idx } => {
-                if *tx_idx > 0 {
-                    let prev_tx_idx = tx_idx - 1;
-                    Some(ProcessingPhase::FeeProcessing {
-                        tx_idx: prev_tx_idx,
-                    })
-                } else {
-                    None
-                }
+            Self::TxChangesBefore { tx_idx, group: LedgerEntryChangeGroup::After } => {
+                Some(Self::TxChangesBefore { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::Before })
+            }
+            Self::TxChangesBefore { tx_idx, group: LedgerEntryChangeGroup::Before } => {
+                Some(tx_idx
+                    .checked_sub(1)
+                    .map_or(Self::FeeProcessing { tx_idx: tx_count - 1, group: LedgerEntryChangeGroup::After }, |i| {
+                        Self::TxChangesAfter { tx_idx: i, group: LedgerEntryChangeGroup::After }
+                    }))
+            }
+            Self::FeeProcessing { tx_idx, group: LedgerEntryChangeGroup::After } => {
+                Some(Self::FeeProcessing { tx_idx: *tx_idx, group: LedgerEntryChangeGroup::Before })
+            }
+            Self::FeeProcessing { tx_idx, group: LedgerEntryChangeGroup::Before } => {
+                tx_idx
+                    .checked_sub(1)
+                    .map(|i| Self::FeeProcessing { tx_idx: i, group: LedgerEntryChangeGroup::After })
             }
         }
     }
@@ -130,88 +157,79 @@ fn extract_key_entry(change: &LedgerEntryChange) -> (LedgerKey, Option<LedgerEnt
 
 impl<'a> LedgerEntryChangesIterator<'a> {
     /// Create a new iterator over ledger entry changes
-    pub fn new(meta: &'a LedgerCloseMeta, skip_post_tx_fee: bool) -> Self {
-        let components = TransactionProcessingComponents::from(meta);
-        let len = components.len();
-        if len > 0 {
-            let initial_phase = if skip_post_tx_fee {
-                ProcessingPhase::TxChangesAfter { tx_idx: len - 1 }
-            } else {
-                ProcessingPhase::PostTxApplyFeeProcessing { tx_idx: len - 1 }
-            };
-            Self {
-                components,
-                state: IteratorState::Processing {
-                    phase: initial_phase,
-                    change_idx: 0,
-                },
-            }
-        } else {
-            Self {
-                components,
-                state: IteratorState::Done,
-            }
-        }
+    pub fn new(meta: &'a LedgerCloseMeta) -> Self {
+        let tx_result_meta = TransactionResultMetaNormalized::from(meta);
+        let len = tx_result_meta.len();
+        let position = (len > 0).then(|| IteratorPosition {
+            phase: ProcessingPhase::first(len - 1),
+            change_idx: 0,
+        });
+        Self { tx_result_meta, position }
     }
 }
 
 impl<'a> Iterator for LedgerEntryChangesIterator<'a> {
-    type Item = ([u8; 32], LedgerKey, Option<LedgerEntry>, ProcessingPhase);
+    type Item = (ProcessingPhase, [u8; 32], LedgerKey, Option<LedgerEntry>);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            match &mut self.state {
-                IteratorState::Processing { phase, change_idx } => {
-                    // Try to get changes from current phase
-                    if let Some(changes) = phase.get_changes(&self.components) {
-                        // If we've processed all changes in this phase
-                        if *change_idx >= changes.len() {
-                            // Move to next phase
-                            if let Some(next_phase) = phase.advance(&self.components) {
-                                *phase = next_phase;
-                                *change_idx = 0;
-                                continue;
-                            } else {
-                                // No more phases
-                                self.state = IteratorState::Done;
-                                continue;
-                            }
-                        }
+            let pos = self.position.as_mut()?;
 
-                        // Get the change in reverse order
-                        let change = &changes[changes.len() - 1 - *change_idx];
-                        let (key, entry) = extract_key_entry(change);
-
-                        *change_idx += 1;
-                        let tx_idx = phase.tx_idx();
-                        let hash = *self.components.tx_hash(tx_idx);
-                        return Some((hash, key, entry, *phase));
-                    } else {
-                        // This phase has no changes, move to next phase
-                        if let Some(next_phase) = phase.advance(&self.components) {
-                            *phase = next_phase;
-                            *change_idx = 0;
-                            continue;
-                        } else {
-                            // No more phases
-                            self.state = IteratorState::Done;
-                            continue;
-                        }
+            let Some(changes) = pos.phase.get_changes(&self.tx_result_meta) else {
+                // No changes in this phase, advance to next phase
+                self.position = pos.phase.advance(&self.tx_result_meta).map(|phase| {
+                    IteratorPosition {
+                        phase,
+                        change_idx: 0,
                     }
-                }
-                IteratorState::Done => return None,
+                });
+                continue;
+            };
+
+            // If we've processed all changes in this phase for current group
+            if pos.change_idx >= changes.len() {
+                // Advance to next phase (which handles After -> Before transition)
+                self.position = pos.phase.advance(&self.tx_result_meta).map(|phase| {
+                    IteratorPosition {
+                        phase,
+                        change_idx: 0,
+                    }
+                });
+                continue;
             }
+
+            // Get the change in reverse order
+            let change = &changes[changes.len() - 1 - pos.change_idx];
+
+            // Check if this change matches the current group
+            let is_before = matches!(change, LedgerEntryChange::State(_));
+            let should_yield = match pos.phase.group() {
+                LedgerEntryChangeGroup::After => !is_before,
+                LedgerEntryChangeGroup::Before => is_before,
+            };
+
+            if !should_yield {
+                // Skip this change, it belongs to the other group
+                pos.change_idx += 1;
+                continue;
+            }
+
+            let phase = pos.phase;
+            pos.change_idx += 1;
+            let hash = *self.tx_result_meta.tx_hash(phase.tx_idx());
+            let (key, entry) = extract_key_entry(change);
+            return Some((phase, hash, key, entry));
         }
     }
 }
 
 /// Extracted transaction processing components from LedgerCloseMeta
-pub enum TransactionProcessingComponents<'a> {
+enum TransactionResultMetaNormalized<'a> {
     V0(&'a [TransactionResultMeta]),
     V1(&'a [TransactionResultMetaV1]),
 }
 
-impl<'a> From<&'a LedgerCloseMeta> for TransactionProcessingComponents<'a> {
+impl<'a> From<&'a LedgerCloseMeta> for TransactionResultMetaNormalized<'a> {
     fn from(meta: &'a LedgerCloseMeta) -> Self {
         match meta {
             LedgerCloseMeta::V0(meta_v0) => Self::V0(&meta_v0.tx_processing),
@@ -221,12 +239,16 @@ impl<'a> From<&'a LedgerCloseMeta> for TransactionProcessingComponents<'a> {
     }
 }
 
-impl<'a> TransactionProcessingComponents<'a> {
+impl<'a> TransactionResultMetaNormalized<'a> {
     pub fn len(&self) -> usize {
         match self {
-            TransactionProcessingComponents::V0(slice) => slice.len(),
-            TransactionProcessingComponents::V1(slice) => slice.len(),
+            TransactionResultMetaNormalized::V0(slice) => slice.len(),
+            TransactionResultMetaNormalized::V1(slice) => slice.len(),
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn fee_processing(&self, index: usize) -> &'a LedgerEntryChanges {
@@ -240,39 +262,39 @@ impl<'a> TransactionProcessingComponents<'a> {
     pub fn tx_changes_before(&self, index: usize) -> Option<&'a LedgerEntryChanges> {
         match self.tx_apply_processing(index) {
             TransactionMeta::V0(_) => None,
-            TransactionMeta::V1(tx_meta) => Some(&tx_meta.tx_changes),
-            TransactionMeta::V2(tx_meta) => Some(&tx_meta.tx_changes_before),
-            TransactionMeta::V3(tx_meta) => Some(&tx_meta.tx_changes_before),
-            TransactionMeta::V4(tx_meta) => Some(&tx_meta.tx_changes_before),
+            TransactionMeta::V1(m) => Some(&m.tx_changes),
+            TransactionMeta::V2(m) => Some(&m.tx_changes_before),
+            TransactionMeta::V3(m) => Some(&m.tx_changes_before),
+            TransactionMeta::V4(m) => Some(&m.tx_changes_before),
         }
     }
 
     /// Get the number of operations for a transaction from any TransactionMeta version
     pub fn operation_count(&self, tx_index: usize) -> usize {
         match self.tx_apply_processing(tx_index) {
-            TransactionMeta::V0(operations) => operations.len(),
-            TransactionMeta::V1(tx_meta) => tx_meta.operations.len(),
-            TransactionMeta::V2(tx_meta) => tx_meta.operations.len(),
-            TransactionMeta::V3(tx_meta) => tx_meta.operations.len(),
-            TransactionMeta::V4(tx_meta) => tx_meta.operations.len(),
+            TransactionMeta::V0(ops) => ops.len(),
+            TransactionMeta::V1(m) => m.operations.len(),
+            TransactionMeta::V2(m) => m.operations.len(),
+            TransactionMeta::V3(m) => m.operations.len(),
+            TransactionMeta::V4(m) => m.operations.len(),
         }
     }
 
     /// Extract changes for a specific operation from any TransactionMeta version
     pub fn operation_changes(&self, tx_index: usize, op_index: usize) -> &'a LedgerEntryChanges {
         match self.tx_apply_processing(tx_index) {
-            TransactionMeta::V0(operations) => &operations[op_index].changes,
-            TransactionMeta::V1(tx_meta) => &tx_meta.operations[op_index].changes,
-            TransactionMeta::V2(tx_meta) => &tx_meta.operations[op_index].changes,
-            TransactionMeta::V3(tx_meta) => &tx_meta.operations[op_index].changes,
-            TransactionMeta::V4(tx_meta) => &tx_meta.operations[op_index].changes,
+            TransactionMeta::V0(ops) => &ops[op_index].changes,
+            TransactionMeta::V1(m) => &m.operations[op_index].changes,
+            TransactionMeta::V2(m) => &m.operations[op_index].changes,
+            TransactionMeta::V3(m) => &m.operations[op_index].changes,
+            TransactionMeta::V4(m) => &m.operations[op_index].changes,
         }
     }
 
     fn tx_apply_processing(&self, index: usize) -> &'a TransactionMeta {
         match self {
-            Self::V0(slice) => &slice[index].tx_apply_processing,
-            Self::V1(slice) => &slice[index].tx_apply_processing,
+            Self::V0(s) => &s[index].tx_apply_processing,
+            Self::V1(s) => &s[index].tx_apply_processing,
         }
     }
 
@@ -280,10 +302,10 @@ impl<'a> TransactionProcessingComponents<'a> {
     pub fn tx_changes_after(&self, index: usize) -> Option<&'a LedgerEntryChanges> {
         match self.tx_apply_processing(index) {
             TransactionMeta::V0(_) => None,
-            TransactionMeta::V1(_tx_meta) => None,
-            TransactionMeta::V2(tx_meta) => Some(&tx_meta.tx_changes_after),
-            TransactionMeta::V3(tx_meta) => Some(&tx_meta.tx_changes_after),
-            TransactionMeta::V4(tx_meta) => Some(&tx_meta.tx_changes_after),
+            TransactionMeta::V1(_) => None,
+            TransactionMeta::V2(m) => Some(&m.tx_changes_after),
+            TransactionMeta::V3(m) => Some(&m.tx_changes_after),
+            TransactionMeta::V4(m) => Some(&m.tx_changes_after),
         }
     }
 
