@@ -2467,7 +2467,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "sha2",
  "stellar-xdr",
  "thiserror 1.0.69",
 ]
