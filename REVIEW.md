@@ -76,12 +76,6 @@ The handling of V1 transaction meta changes is uncertain.
 
 ### Low
 
-#### 11. Inconsistent `readme` paths in `Cargo.toml`
-
-- `soroban-ledger-rpc`: `readme = "README.md"` (crate-local, doesn't exist)
-- `soroban-ledger-snapshot-source-rpc`: `readme = "README.md"` (crate-local, doesn't exist)
-- Others: `readme = "../README.md"` (workspace root)
-
 #### 12. `GetLedgerEntriesResponseEntry` is public but fields are private (`soroban-ledger-rpc/src/lib.rs:99-105`)
 
 The struct is `pub` but has no public API for construction, and derives `Serialize` and `Deserialize`. Consider making it `pub(crate)` if not intended for external use.
