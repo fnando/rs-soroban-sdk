@@ -98,7 +98,7 @@ struct GetLedgerEntriesResponse {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetLedgerEntriesResponseEntry {
+struct GetLedgerEntriesResponseEntry {
     xdr: String,
     last_modified_ledger_seq: u32,
     live_until_ledger_seq: Option<u32>,

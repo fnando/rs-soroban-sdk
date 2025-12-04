@@ -76,10 +76,6 @@ The handling of V1 transaction meta changes is uncertain.
 
 ### Low
 
-#### 12. `GetLedgerEntriesResponseEntry` is public but fields are private (`soroban-ledger-rpc/src/lib.rs:99-105`)
-
-The struct is `pub` but has no public API for construction, and derives `Serialize` and `Deserialize`. Consider making it `pub(crate)` if not intended for external use.
-
 #### 13. Missing documentation
 
 Most public functions and types lack documentation. Key areas:
