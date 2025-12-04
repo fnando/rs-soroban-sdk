@@ -46,15 +46,7 @@ Multiple files contain `eprintln!` for logging:
 
 Consider using a proper logging framework (e.g., `tracing` or `log`) or removing debug output for production.
 
-#### 8. Potential panic in iterator on empty ledger (`soroban-ledger-snapshot-source-meta/src/iter.rs:38-39`)
-
-```rust
-fn starting_from_end(tx_count: usize) -> Self {
-    Self::PostTxApplyFeeProcessing { tx_idx: tx_count - 1 }
-}
-```
-
-If `tx_count` is 0, this will underflow. While the caller checks for empty, this function is unsafe to call directly.
+#### 8. ~~Potential panic in iterator on empty ledger~~ - ADDRESSED
 
 #### 9. TODO comment indicates incomplete implementation (`soroban-ledger-snapshot-source-meta/src/lib.rs:282-284`)
 
