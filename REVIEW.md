@@ -83,14 +83,7 @@ Most public functions and types lack documentation. Key areas:
 - `MetaSnapshotSource` constructor parameters
 - Error types and their meanings
 
-#### 14. Hardcoded constants (`soroban-ledger-meta-storage/src/lib.rs:93-94`)
-
-```rust
-const PARTITION_SIZE: u32 = 64000;
-const BATCH_SIZE: u32 = 1;
-```
-
-These SEP-54 constants are hardcoded. Consider making them configurable or documenting their source.
+#### 14. ~~Hardcoded constants~~ - ADDRESSED
 
 #### 15. `.lock` files left behind in cache directory
 

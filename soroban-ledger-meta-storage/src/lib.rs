@@ -90,6 +90,7 @@ pub fn parse_ledger<R: std::io::Read>(reader: R) -> Result<LedgerCloseMeta, Erro
 ///
 /// This implements the SEP-54 path structure for ledger metadata
 fn path_for_ledger(ledger_sequence: u32) -> String {
+    // Matches the current deployment's configuration
     const PARTITION_SIZE: u32 = 64000;
     const BATCH_SIZE: u32 = 1;
     const MAX_UINT32: u32 = 0xFFFFFFFF;
