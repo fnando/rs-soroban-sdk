@@ -85,6 +85,54 @@ impl MetaSnapshotSource {
         }
     }
 
+    /// Create a new MetaSnapshotSource for Stellar pubnet with default URLs
+    ///
+    /// Uses default mainnet URLs:
+    /// - SEP-54 meta storage: AWS public blockchain
+    /// - RPC: mainnet.sorobanrpc.com
+    /// - History archive: history.stellar.org
+    ///
+    /// # Arguments
+    /// * `ledger` - Ledger sequence number
+    /// * `tx_hash` - Optional transaction hash
+    /// * `cache_path` - Path to store cache files
+    pub fn new_pubnet(ledger: u32, tx_hash: Option<[u8; 32]>, cache_path: PathBuf) -> Self {
+        Self::new(
+            "https://aws-public-blockchain.s3.us-east-2.amazonaws.com/v1.1/stellar/ledgers/pubnet"
+                .to_string(),
+            "https://mainnet.sorobanrpc.com".to_string(),
+            "https://history.stellar.org/prd/core-live/core_live_001".to_string(),
+            64,
+            ledger,
+            tx_hash,
+            cache_path,
+        )
+    }
+
+    /// Create a new MetaSnapshotSource for Stellar testnet with default URLs
+    ///
+    /// Uses default testnet URLs:
+    /// - SEP-54 meta storage: AWS public blockchain
+    /// - RPC: soroban-testnet.stellar.org
+    /// - History archive: history.stellar.org
+    ///
+    /// # Arguments
+    /// * `ledger` - Ledger sequence number
+    /// * `tx_hash` - Optional transaction hash
+    /// * `cache_path` - Path to store cache files
+    pub fn new_testnet(ledger: u32, tx_hash: Option<[u8; 32]>, cache_path: PathBuf) -> Self {
+        Self::new(
+            "https://aws-public-blockchain.s3.us-east-2.amazonaws.com/v1.1/stellar/ledgers/testnet/2025-08-14"
+                .to_string(),
+            "https://soroban-testnet.stellar.org".to_string(),
+            "https://history.stellar.org/prd/core-testnet/core_testnet_001".to_string(),
+            64,
+            ledger,
+            tx_hash,
+            cache_path,
+        )
+    }
+
     fn fetch(&self, key: &LedgerKey) -> Result<Option<LedgerEntryWithTtl>, MetaSnapshotError> {
         // TODO: Consider replacing this caching into a directory with caching into a
         // LedgerSnapshot file. It would be more compatible with existing functionality.

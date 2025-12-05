@@ -11,19 +11,9 @@ mod test {
     use soroban_ledger_snapshot_source_meta::MetaSnapshotSource;
     use soroban_sdk::{token::TokenClient, Address, Env};
     use std::path::PathBuf;
-    use std::string::ToString;
 
     fn test() {
-        let meta_url =
-            "https://aws-public-blockchain.s3.us-east-2.amazonaws.com/v1.1/stellar/ledgers/pubnet"
-                .to_string();
-        let rpc_url = "https://mainnet.sorobanrpc.com".to_string();
-        let archive_url = "https://history.stellar.org/prd/core-live/core_live_001".to_string();
-        let archive_checkpoint_ledger_count = 64;
         let ledger = 59914751;
-        // "6fc2e483896276816b6d3b8d1df778bc978521f51561faa407ab8bb1949e6a1b" (tx 96 in 59914751) expect balance 945997587
-        // "f63788bd8d16888d248f2bc31c95a186854b71b2f8c03489381cd845fc577f3d" (tx 97 in 59914751) expect balance 945997387
-        // "2198582798cc112941ec1e6b7a53ea590bf176be33b744076db2be1f722cf83d" (tx 98 in ...)
         let tx_hash = bytes!(0x6fc2e483896276816b6d3b8d1df778bc978521f51561faa407ab8bb1949e6a1b);
         let cache_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -32,15 +22,7 @@ mod test {
             .unwrap()
             .join("tests-snapshot-source")
             .join("pubnet");
-        let meta = MetaSnapshotSource::new(
-            meta_url,
-            rpc_url,
-            archive_url,
-            archive_checkpoint_ledger_count,
-            ledger,
-            Some(tx_hash),
-            cache_path,
-        );
+        let meta = MetaSnapshotSource::new_pubnet(ledger, Some(tx_hash), cache_path);
         let e = Env::from_ledger_snapshot(meta);
         let a = Address::from_str(
             &e,
