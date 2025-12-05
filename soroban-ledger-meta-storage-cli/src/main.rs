@@ -1,5 +1,5 @@
 use clap::{Parser, ValueEnum};
-use soroban_ledger_meta::ledger;
+use soroban_ledger_meta_storage::ledger;
 use std::process;
 use stellar_xdr::curr::{Limited, Limits, WriteXdr};
 
