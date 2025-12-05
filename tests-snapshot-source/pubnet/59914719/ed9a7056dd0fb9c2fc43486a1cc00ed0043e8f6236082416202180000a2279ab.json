@@ -1,0 +1,103 @@
+{
+  "entry": {
+    "last_modified_ledger_seq": 52794011,
+    "data": {
+      "contract_data": {
+        "ext": "v0",
+        "contract": "CAESLMGW5LYTIEJI7FJHK6SFSWRELLNVX5Q4WR4UZEALMTRWQDBKDPAG",
+        "key": "ledger_key_contract_instance",
+        "durability": "persistent",
+        "val": {
+          "contract_instance": {
+            "executable": "stellar_asset",
+            "storage": [
+              {
+                "key": {
+                  "symbol": "METADATA"
+                },
+                "val": {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "decimal"
+                      },
+                      "val": {
+                        "u32": 7
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "name"
+                      },
+                      "val": {
+                        "string": "VELO:GDM4RQUQQUVSKQA7S6EM7XBZP3FCGH4Q7CL6TABQ7B2BEJ5ERARM2M5M"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "symbol"
+                      },
+                      "val": {
+                        "string": "VELO"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "Admin"
+                    }
+                  ]
+                },
+                "val": {
+                  "address": "GDM4RQUQQUVSKQA7S6EM7XBZP3FCGH4Q7CL6TABQ7B2BEJ5ERARM2M5M"
+                }
+              },
+              {
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "AssetInfo"
+                    }
+                  ]
+                },
+                "val": {
+                  "vec": [
+                    {
+                      "symbol": "AlphaNum4"
+                    },
+                    {
+                      "map": [
+                        {
+                          "key": {
+                            "symbol": "asset_code"
+                          },
+                          "val": {
+                            "string": "VELO"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "issuer"
+                          },
+                          "val": {
+                            "bytes": "d9c8c290852b25401f9788cfdc397eca231f90f897e98030f8741227a48822cd"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "ext": "v0"
+  },
+  "ttl": 60268166
+}

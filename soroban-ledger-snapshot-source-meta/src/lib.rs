@@ -256,7 +256,7 @@ impl MetaSnapshotSource {
                 .take(7)
                 .map(|b| format!("{:02x}", b))
                 .collect::<String>();
-            eprintln!("current phase: {:?}, tx_hash: {}", phase, tx_hash_short);
+            //eprintln!("current phase: {:?}, tx_hash: {}", phase, tx_hash_short);
             if &change_key == key {
                 if let Some(entry) = change_entry {
                     eprintln!("returned entry (meta)");
