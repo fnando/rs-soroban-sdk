@@ -72,8 +72,8 @@ pub fn parse_history<R: std::io::Read>(reader: R) -> Result<History, Error> {
 pub struct History {
     pub current_ledger: u32,
     pub current_buckets: Vec<HistoryBucket>,
-    pub hot_archive_buckets: Vec<HistoryBucket>,
-    pub network_passphrase: String,
+    pub hot_archive_buckets: Option<Vec<HistoryBucket>>,
+    pub network_passphrase: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize)]
