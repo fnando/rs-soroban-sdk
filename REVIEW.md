@@ -23,17 +23,7 @@ This branch adds several new crates for fetching ledger data from multiple sourc
 
 ### Critical
 
-#### 2. RPC snapshot source doesn't handle `None` case (`soroban-ledger-snapshot-source-rpc/src/lib.rs:39-48`)
-
-```rust
-let parse_result = parse_ledger_entry(buffer.as_slice());
-match parse_result {
-    Ok((entry, ttl)) => Ok(Some((Rc::new(entry), ttl))),
-    // ...
-}
-```
-
-`parse_ledger_entry` returns `Result<Option<(LedgerEntry, Option<u32>)>, Error>`, but the match doesn't handle `Ok(None)` (when entry doesn't exist). This will cause a pattern match failure at runtime.
+#### 2. ~~RPC snapshot source doesn't handle `None` case~~ - ADDRESSED
 
 ### Medium
 
@@ -89,7 +79,7 @@ There are 102 nearly identical snapshot JSON files (50 in `test/` and 50 in `tes
 
 1. **Fix the critical CLI import bug** - the CLI won't compile as-is.
 
-2. **Fix the RPC snapshot source pattern match** - add handling for `Ok(None)`.
+2. ~~**Fix the RPC snapshot source pattern match** - add handling for `Ok(None)`.~~ - ADDRESSED
 
 3. **Standardize `thiserror` version** across all crates.
 

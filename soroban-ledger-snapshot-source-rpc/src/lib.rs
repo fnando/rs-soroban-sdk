@@ -37,7 +37,8 @@ impl SnapshotSource for RpcSnapshotSource {
 
         let parse_result = parse_ledger_entry(buffer.as_slice());
         match parse_result {
-            Ok((entry, ttl)) => Ok(Some((Rc::new(entry), ttl))),
+            Ok(Some((entry, ttl))) => Ok(Some((Rc::new(entry), ttl))),
+            Ok(None) => Ok(None),
             Err(err) => {
                 eprintln!("Error parsing RPC response: {err:?}");
                 Err(HostError::from(soroban_sdk::Error::from((
