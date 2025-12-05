@@ -1,0 +1,21 @@
+{
+  "entry": {
+    "last_modified_ledger_seq": 8682,
+    "data": {
+      "account": {
+        "account_id": "GAENIE5LBJIXLMJIAJ7225IUPA6CX7EGHUXRX5FLCZFFAQSG2ZUYSWFK",
+        "balance": "572179760478975",
+        "seq_num": "37288906063872",
+        "num_sub_entries": 0,
+        "inflation_dest": null,
+        "flags": 0,
+        "home_domain": "",
+        "thresholds": "01000000",
+        "signers": [],
+        "ext": "v0"
+      }
+    },
+    "ext": "v0"
+  },
+  "ttl": null
+}
