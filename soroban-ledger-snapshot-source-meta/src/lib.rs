@@ -197,7 +197,7 @@ impl MetaSnapshotSource {
             }
 
             // Not found in this ledger, try previous ledger
-            if ledger == 2 {
+            if ledger == 3 {
                 return Ok(None);
             }
             ledger -= 1;
