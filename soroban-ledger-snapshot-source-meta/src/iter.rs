@@ -289,6 +289,11 @@ impl<'a> Iterator for LedgerEntryChangesIterator<'a> {
         loop {
             let pos = self.position.as_mut()?;
 
+            // Check if iteration is complete
+            if matches!(pos.phase, ProcessingPhase::Done) {
+                return None;
+            }
+
             // Get tx_idx and changes, advancing if either is not available
             let (Some(tx_idx), Some(changes)) = (
                 pos.phase.tx_idx(),
