@@ -77,13 +77,7 @@ Most public functions and types lack documentation. Key areas:
 
 #### 14. ~~Hardcoded constants~~ - ADDRESSED
 
-#### 15. `.lock` files left behind in cache directory
-
-The cache implementation creates `.lock` files that are never cleaned up:
-```rust
-let lock_path = path.with_extension("lock");
-let lock_file = File::create(&lock_path).map_err(CacheError::Io)?;
-```
+#### 15. ~~`.lock` files left behind in cache directory~~ - WONTFIX
 
 #### 16. Test file duplication (`tests/fork/test_snapshots/`)
 
