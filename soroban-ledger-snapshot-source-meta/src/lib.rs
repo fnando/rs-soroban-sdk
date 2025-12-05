@@ -1,3 +1,4 @@
+use cargo_metadata::MetadataCommand;
 use directories::ProjectDirs;
 use sha2::{Digest, Sha256};
 use soroban_ledger_history_archive::{get_bucket, get_history, parse_bucket, parse_history};
@@ -41,6 +42,14 @@ pub enum MetaSnapshotError {
     HistoryArchive(#[from] soroban_ledger_history_archive::Error),
     #[error("home directory not found")]
     HomeDirectoryNotFound,
+    #[error("cargo metadata error: {0}")]
+    CargoMetadata(#[from] cargo_metadata::Error),
+}
+
+/// Get the workspace root directory using cargo metadata
+fn get_workspace_root() -> Result<PathBuf, MetaSnapshotError> {
+    let metadata = MetadataCommand::new().exec()?;
+    Ok(metadata.workspace_root.into())
 }
 
 /// Meta snapshot source that downloads ledger meta and searches for ledger entries
@@ -92,11 +101,20 @@ impl MetaSnapshotSource {
     /// - RPC: mainnet.sorobanrpc.com
     /// - History archive: history.stellar.org
     ///
+    /// The cache path is automatically computed as `<workspace_root>/tests-snapshot-source/pubnet`
+    /// using cargo metadata to find the workspace root.
+    ///
     /// # Arguments
     /// * `ledger` - Ledger sequence number
     /// * `tx_hash` - Optional transaction hash
-    /// * `cache_path` - Path to store cache files
-    pub fn new_pubnet(ledger: u32, tx_hash: Option<[u8; 32]>, cache_path: PathBuf) -> Self {
+    ///
+    /// # Panics
+    /// Panics if the workspace root cannot be determined via cargo metadata.
+    pub fn new_pubnet(ledger: u32, tx_hash: Option<[u8; 32]>) -> Self {
+        let cache_path = get_workspace_root()
+            .expect("failed to get workspace root")
+            .join("tests-snapshot-source")
+            .join("pubnet");
         Self::new(
             "https://aws-public-blockchain.s3.us-east-2.amazonaws.com/v1.1/stellar/ledgers/pubnet"
                 .to_string(),
@@ -116,11 +134,20 @@ impl MetaSnapshotSource {
     /// - RPC: soroban-testnet.stellar.org
     /// - History archive: history.stellar.org
     ///
+    /// The cache path is automatically computed as `<workspace_root>/tests-snapshot-source/testnet`
+    /// using cargo metadata to find the workspace root.
+    ///
     /// # Arguments
     /// * `ledger` - Ledger sequence number
     /// * `tx_hash` - Optional transaction hash
-    /// * `cache_path` - Path to store cache files
-    pub fn new_testnet(ledger: u32, tx_hash: Option<[u8; 32]>, cache_path: PathBuf) -> Self {
+    ///
+    /// # Panics
+    /// Panics if the workspace root cannot be determined via cargo metadata.
+    pub fn new_testnet(ledger: u32, tx_hash: Option<[u8; 32]>) -> Self {
+        let cache_path = get_workspace_root()
+            .expect("failed to get workspace root")
+            .join("tests-snapshot-source")
+            .join("testnet");
         Self::new(
             "https://aws-public-blockchain.s3.us-east-2.amazonaws.com/v1.1/stellar/ledgers/testnet/2025-08-14"
                 .to_string(),
