@@ -87,7 +87,7 @@ pub fn get_bucket<W: Write + ?Sized>(
     archive_url: &str,
     bucket: &str,
     writer: &mut W,
-) -> Result<(), Error> {
+) -> Result<Option<u64>, Error> {
     let bucket_0 = &bucket[0..=1];
     let bucket_1 = &bucket[2..=3];
     let bucket_2 = &bucket[4..=5];
@@ -103,9 +103,11 @@ pub fn get_bucket<W: Write + ?Sized>(
         return Err(Error::GettingBucketGotStatusCode(response.status()));
     }
 
+    let content_length = response.content_length();
+
     let mut decoder = GzDecoder::new(response);
     copy(&mut decoder, writer).map_err(Error::StreamingBucket)?;
-    Ok(())
+    Ok(content_length)
 }
 
 pub fn parse_bucket<'a, R: std::io::Read + 'a>(

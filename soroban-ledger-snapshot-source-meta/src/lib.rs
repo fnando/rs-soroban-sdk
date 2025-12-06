@@ -202,32 +202,87 @@ impl MetaSnapshotSource {
             .join("meta-snapshot-source");
         std::fs::create_dir_all(&cache_path)?;
 
-        let mut ledger = self.ledger;
-        loop {
-            eprintln!("loading ledger {ledger}");
+        // Calculate checkpoint boundaries
+        let checkpoint_count = self.archive_checkpoint_ledger_count;
+        let prev_checkpoint = ((self.ledger + 1) / checkpoint_count) * checkpoint_count - 1;
+        let ledgers_to_checkpoint = if self.ledger > prev_checkpoint {
+            self.ledger - prev_checkpoint
+        } else {
+            checkpoint_count
+        };
 
-            // Search for the ledger entry in this ledger's meta
+        // Precache all ledgers from starting ledger down to the checkpoint
+        self.precache_ledgers(&cache_path, self.ledger, ledgers_to_checkpoint);
+
+        // Phase 1: Check the starting ledger
+        eprintln!("loading ledger {}", self.ledger);
+        if let Some(result) = self.fetch_from_meta(&cache_path, self.ledger, key)? {
+            return Ok(result);
+        }
+
+        // Try RPC for the starting ledger
+        if let Some(result) = self.fetch_from_rpc(&cache_path, self.ledger, key)? {
+            return Ok(result);
+        }
+
+        // Phase 2: Search through previous ledgers until we hit a checkpoint
+        let mut ledger = self.ledger.saturating_sub(1);
+        while ledger >= 3 {
+            // If this is a checkpoint ledger, switch to archive
+            if (ledger + 1) % checkpoint_count == 0 {
+                return self.fetch_from_archive(&cache_path, ledger, key);
+            }
+
+            eprintln!("loading ledger {ledger}");
             if let Some(result) = self.fetch_from_meta(&cache_path, ledger, key)? {
                 return Ok(result);
             }
 
-            // Not found in meta, try RPC on first loop
-            if ledger == self.ledger {
-                if let Some(result) = self.fetch_from_rpc(&cache_path, ledger, key)? {
-                    return Ok(result);
-                }
-            }
-
-            // Not found in meta, if it's a subsequent ledger that is a checkpoint ledger, try history archive
-            if ledger != self.ledger && (ledger + 1) % self.archive_checkpoint_ledger_count == 0 {
-                return self.fetch_from_archive(&cache_path, ledger, key);
-            }
-
-            // Not found in this ledger, try previous ledger
-            if ledger == 3 {
-                return Ok(None);
-            }
             ledger -= 1;
+        }
+
+        Ok(None)
+    }
+
+    fn precache_ledgers(&self, cache_path: &PathBuf, start_ledger: u32, count: u32) {
+        use std::thread;
+
+        let ledgers_to_cache: Vec<u32> = (0..count)
+            .filter_map(|i| start_ledger.checked_sub(i))
+            .filter(|&l| l >= 3)
+            .filter(|&l| !cache_path.join(format!("ledger-{l}.xdr")).exists())
+            .collect();
+
+        if ledgers_to_cache.is_empty() {
+            return;
+        }
+
+        eprintln!(
+            "precaching {} ledgers: {:?}",
+            ledgers_to_cache.len(),
+            ledgers_to_cache
+        );
+
+        // Process in chunks of 10 to avoid too many open files
+        const MAX_CONCURRENT_DOWNLOADS: usize = 10;
+        for chunk in ledgers_to_cache.chunks(MAX_CONCURRENT_DOWNLOADS) {
+            let handles: Vec<_> = chunk
+                .iter()
+                .map(|&l| {
+                    let meta_url = self.meta_url.clone();
+                    let path = cache_path.join(format!("ledger-{l}.xdr"));
+                    thread::spawn(move || {
+                        let _ = cache(path, |write| {
+                            get_ledger(&meta_url, l, write)
+                                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+                        });
+                    })
+                })
+                .collect();
+
+            for handle in handles {
+                let _ = handle.join();
+            }
         }
     }
 
@@ -323,14 +378,22 @@ impl MetaSnapshotSource {
             .flat_map(|b| [&b.curr, &b.snap])
             .filter(|b| *b != "0000000000000000000000000000000000000000000000000000000000000000");
         for bucket in buckets {
+            let bucket_path = cache_path.join(format!("bucket-{bucket}.xdr"));
             eprintln!("loading {bucket}");
-            let bucket_read = cache(cache_path.join(format!("bucket-{bucket}.xdr")), |write| {
-                get_bucket(&self.archive_url, bucket, write)
-                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            let bucket_read = cache(bucket_path.clone(), |write| {
+                let content_length = get_bucket(&self.archive_url, bucket, write)
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+                if let Some(len) = content_length {
+                    eprintln!("downloaded {bucket} ({len} bytes compressed)");
+                }
+                Ok(())
             })?;
+            let file_size = std::fs::metadata(&bucket_path)
+                .map(|m| m.len())
+                .unwrap_or(0);
             let mut limited_reader = Limited::new(bucket_read, Limits::none());
             let bucket_entries_iter = parse_bucket(&mut limited_reader);
-            eprintln!("searching {bucket}");
+            eprintln!("searching {bucket} ({file_size} bytes)");
             for entry_result in bucket_entries_iter {
                 let entry = entry_result?.0;
                 match entry {
