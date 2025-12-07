@@ -1,5 +1,8 @@
 //! Implements SEP-54
 
+#[cfg(feature = "cli")]
+pub mod cli;
+
 use std::io::{copy, Cursor, Write};
 
 use stellar_xdr::curr as stellar_xdr;

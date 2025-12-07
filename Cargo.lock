@@ -2334,22 +2334,13 @@ dependencies = [
 name = "soroban-ledger-fetch-from-meta-storage"
 version = "23.2.1"
 dependencies = [
+ "clap",
  "reqwest",
  "serde",
  "serde_json",
  "stellar-xdr",
  "thiserror 1.0.69",
  "zstd",
-]
-
-[[package]]
-name = "soroban-ledger-fetch-from-meta-storage-cli"
-version = "23.2.1"
-dependencies = [
- "clap",
- "serde_json",
- "soroban-ledger-fetch-from-meta-storage",
- "stellar-xdr",
 ]
 
 [[package]]

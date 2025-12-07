@@ -14,7 +14,6 @@ members = [
 
     "soroban-ledger-fetch-from/rpc",
     "soroban-ledger-fetch-from/meta-storage",
-    "soroban-ledger-fetch-from/meta-storage-cli",
     "soroban-ledger-fetch-from/history-archive",
     "soroban-ledger-snapshot-source-live",
     "soroban-ledger-snapshot-source-tx",
