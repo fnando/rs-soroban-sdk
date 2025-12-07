@@ -1,5 +1,5 @@
 [package]
-name = "soroban-ledger-meta-storage"
+name = "soroban-ledger-fetch-from-meta-storage"
 description = "Download LedgerCloseMeta from SEP-54 compatible ledger storage."
 homepage = "https://github.com/stellar/rs-soroban-sdk"
 repository = "https://github.com/stellar/rs-soroban-sdk"

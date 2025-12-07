@@ -1,9 +1,11 @@
 use cargo_metadata::MetadataCommand;
 use directories::ProjectDirs;
 use sha2::{Digest, Sha256};
-use soroban_ledger_history_archive::{get_bucket, get_history, parse_bucket, parse_history};
-use soroban_ledger_meta_storage::{get_ledger, parse_ledger};
-use soroban_ledger_rpc::{get_ledger_entry, parse_ledger_entry};
+use soroban_ledger_fetch_from_history_archive::{
+    get_bucket, get_history, parse_bucket, parse_history,
+};
+use soroban_ledger_fetch_from_meta_storage::{get_ledger, parse_ledger};
+use soroban_ledger_fetch_from_rpc::{get_ledger_entry, parse_ledger_entry};
 use soroban_sdk::testutils::SnapshotSourceInput;
 use soroban_sdk::testutils::{HostError, SnapshotSource};
 use soroban_sdk::xdr::{BucketEntry, LedgerEntry, LedgerKey, Limited, Limits, WriteXdr};
@@ -35,11 +37,11 @@ pub enum MetaSnapshotError {
     #[error("json error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("meta storage error: {0}")]
-    MetaStorage(#[from] soroban_ledger_meta_storage::Error),
+    MetaStorage(#[from] soroban_ledger_fetch_from_meta_storage::Error),
     #[error("rpc error: {0}")]
-    Rpc(#[from] soroban_ledger_rpc::Error),
+    Rpc(#[from] soroban_ledger_fetch_from_rpc::Error),
     #[error("history archive error: {0}")]
-    HistoryArchive(#[from] soroban_ledger_history_archive::Error),
+    HistoryArchive(#[from] soroban_ledger_fetch_from_history_archive::Error),
     #[error("home directory not found")]
     HomeDirectoryNotFound,
     #[error("cargo metadata error: {0}")]
@@ -194,11 +196,19 @@ impl MetaSnapshotSource {
             },
         )?;
 
+        let ledger_cache_dir = self.cache_path.join(format!("{}", self.ledger));
+
+        // Ensure cache directory exists
+        std::fs::create_dir_all(&ledger_cache_dir)?;
+
         // Parse the cached result
         Ok(serde_json::from_reader(fetch_read)?)
     }
 
-    fn fetch_with_dl_cache(&self, key: &LedgerKey) -> Result<Option<LedgerEntryWithTtl>, MetaSnapshotError> {
+    fn fetch_with_dl_cache(
+        &self,
+        key: &LedgerKey,
+    ) -> Result<Option<LedgerEntryWithTtl>, MetaSnapshotError> {
         eprintln!("looking up key {}", serde_json::to_string(key)?);
 
         let cache_path = ProjectDirs::from("org", "stellar", "soroban-sdk")

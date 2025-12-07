@@ -7,7 +7,7 @@ pub struct Contract;
 #[cfg(test)]
 mod test {
     extern crate std;
-    use soroban_ledger_snapshot_source_rpc::RpcSnapshotSource;
+    use soroban_ledger_snapshot_source_live::RpcSnapshotSource;
     use soroban_sdk::{token::TokenClient, Address, Env};
 
     #[test]

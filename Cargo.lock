@@ -2319,7 +2319,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "soroban-ledger-history-archive"
+name = "soroban-ledger-fetch-from-history-archive"
 version = "23.2.1"
 dependencies = [
  "flate2",
@@ -2331,7 +2331,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "soroban-ledger-meta-storage"
+name = "soroban-ledger-fetch-from-meta-storage"
 version = "23.2.1"
 dependencies = [
  "reqwest",
@@ -2343,17 +2343,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "soroban-ledger-meta-storage-cli"
+name = "soroban-ledger-fetch-from-meta-storage-cli"
 version = "23.2.1"
 dependencies = [
  "clap",
  "serde_json",
- "soroban-ledger-meta-storage",
+ "soroban-ledger-fetch-from-meta-storage",
  "stellar-xdr",
 ]
 
 [[package]]
-name = "soroban-ledger-rpc"
+name = "soroban-ledger-fetch-from-rpc"
 version = "23.2.1"
 dependencies = [
  "reqwest",
@@ -2377,7 +2377,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "soroban-ledger-snapshot-source-meta"
+name = "soroban-ledger-snapshot-source-live"
+version = "23.2.1"
+dependencies = [
+ "soroban-ledger-fetch-from-rpc",
+ "soroban-sdk",
+]
+
+[[package]]
+name = "soroban-ledger-snapshot-source-tx"
 version = "23.2.1"
 dependencies = [
  "cargo_metadata",
@@ -2386,19 +2394,11 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "soroban-ledger-history-archive",
- "soroban-ledger-meta-storage",
- "soroban-ledger-rpc",
+ "soroban-ledger-fetch-from-history-archive",
+ "soroban-ledger-fetch-from-meta-storage",
+ "soroban-ledger-fetch-from-rpc",
  "soroban-sdk",
  "thiserror 2.0.17",
-]
-
-[[package]]
-name = "soroban-ledger-snapshot-source-rpc"
-version = "23.2.1"
-dependencies = [
- "soroban-ledger-rpc",
- "soroban-sdk",
 ]
 
 [[package]]
@@ -2755,7 +2755,7 @@ name = "test_fork"
 version = "23.2.1"
 dependencies = [
  "bytes-lit",
- "soroban-ledger-snapshot-source-meta",
+ "soroban-ledger-snapshot-source-tx",
  "soroban-sdk",
  "url",
 ]
@@ -2764,7 +2764,7 @@ dependencies = [
 name = "test_fork_rpc"
 version = "23.2.1"
 dependencies = [
- "soroban-ledger-snapshot-source-rpc",
+ "soroban-ledger-snapshot-source-live",
  "soroban-sdk",
 ]
 

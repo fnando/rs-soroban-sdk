@@ -1,5 +1,5 @@
 [package]
-name = "soroban-ledger-meta-storage-cli"
+name = "soroban-ledger-fetch-from-meta-storage-cli"
 description = "CLI tool to download LedgerCloseMeta from Stellar public blockchain data"
 homepage = "https://github.com/stellar/rs-soroban-sdk"
 repository = "https://github.com/stellar/rs-soroban-sdk"
@@ -11,11 +11,11 @@ edition = "2021"
 rust-version.workspace = true
 
 [[bin]]
-name = "soroban-ledger-meta-storage-cli"
+name = "soroban-ledger-fetch-from-meta-storage-cli"
 path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
-soroban-ledger-meta-storage = { workspace = true }
+soroban-ledger-fetch-from-meta-storage = { workspace = true }
 serde_json = "1.0"
 stellar-xdr = { workspace = true, features = ["curr", "std"] }

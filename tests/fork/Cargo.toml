@@ -15,7 +15,7 @@ doctest = false
 soroban-sdk = {path = "../../soroban-sdk"}
 
 [dev-dependencies]
-soroban-ledger-snapshot-source-meta = {path = "../../soroban-ledger-snapshot-source-meta"}
+soroban-ledger-snapshot-source-tx = {path = "../../soroban-ledger-snapshot-source-tx"}
 soroban-sdk = {path = "../../soroban-sdk", features = ["testutils"]}
 url = "2"
 bytes-lit = "0.0.5"

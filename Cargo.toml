@@ -12,12 +12,12 @@ members = [
     "soroban-token-spec",
     "stellar-asset-spec",
 
-    "soroban-ledger-rpc",
-    "soroban-ledger-meta-storage",
-    "soroban-ledger-meta-storage-cli",
-    "soroban-ledger-history-archive",
-    "soroban-ledger-snapshot-source-rpc",
-    "soroban-ledger-snapshot-source-meta",
+    "soroban-ledger-fetch-from/rpc",
+    "soroban-ledger-fetch-from/meta-storage",
+    "soroban-ledger-fetch-from/meta-storage-cli",
+    "soroban-ledger-fetch-from/history-archive",
+    "soroban-ledger-snapshot-source-live",
+    "soroban-ledger-snapshot-source-tx",
 
     "tests/*",
 ]
@@ -37,11 +37,11 @@ soroban-token-sdk = { version = "23.2.1", path = "soroban-token-sdk" }
 soroban-token-spec = { version = "23.2.1", path = "soroban-token-spec" }
 stellar-asset-spec = { version = "23.2.1", path = "stellar-asset-spec" }
 
-soroban-ledger-rpc = { version = "23.1.0", path = "soroban-ledger-rpc" }
-soroban-ledger-meta-storage = { version = "23.1.0", path = "soroban-ledger-meta-storage" }
-soroban-ledger-history-archive = { version = "23.1.0", path = "soroban-ledger-history-archive" }
-soroban-ledger-snapshot-source-rpc = { version = "23.1.0", path = "soroban-ledger-snapshot-source-rpc" }
-soroban-ledger-snapshot-source-meta = { version = "23.1.0", path = "soroban-ledger-snapshot-source-meta" }
+soroban-ledger-fetch-from-rpc = { version = "=23.2.1", path = "soroban-ledger-fetch-from/rpc" }
+soroban-ledger-fetch-from-meta-storage = { version = "=23.2.1", path = "soroban-ledger-fetch-from/meta-storage" }
+soroban-ledger-fetch-from-history-archive = { version = "=23.2.1", path = "soroban-ledger-fetch-from/history-archive" }
+soroban-ledger-snapshot-source-live = { version = "23.2.1", path = "soroban-ledger-snapshot-source-live" }
+soroban-ledger-snapshot-source-tx = { version = "23.2.1", path = "soroban-ledger-snapshot-source-tx" }
 
 [workspace.dependencies.soroban-env-common]
 version = "=23.0.1"

@@ -8,7 +8,7 @@ pub struct Contract;
 mod test {
     extern crate std;
     use bytes_lit::bytes;
-    use soroban_ledger_snapshot_source_meta::MetaSnapshotSource;
+    use soroban_ledger_snapshot_source_tx::MetaSnapshotSource;
     use soroban_sdk::{testutils::Ledger, token::TokenClient, Address, Env};
 
     fn test() {
@@ -22,7 +22,10 @@ mod test {
         e.ledger().set_network_id(bytes_lit::bytes!(
             0x7ac33997544e3175d266bd022439b22cdb16508c01163f26e5cb2a3e1045a979
         ));
-        let contract = Address::from_str(&e, "CAESLMGW5LYTIEJI7FJHK6SFSWRELLNVX5Q4WR4UZEALMTRWQDBKDPAG");
+        let contract = Address::from_str(
+            &e,
+            "CAESLMGW5LYTIEJI7FJHK6SFSWRELLNVX5Q4WR4UZEALMTRWQDBKDPAG",
+        );
         let client = TokenClient::new(&e, &contract);
 
         std::println!("test one");
@@ -39,7 +42,7 @@ mod test {
         let res = client.balance(&to);
         std::println!("to {res}");
         // "82339283"
-        
+
         // Tx after:
         let ledger = 59914719;
         let tx_hash = bytes!(0x67885f9c05104cc29b7cb960d49b7b03ca3ddf9ca2bd45008cb0cf0b3307c6df);
@@ -49,7 +52,10 @@ mod test {
         e.ledger().set_network_id(bytes_lit::bytes!(
             0x7ac33997544e3175d266bd022439b22cdb16508c01163f26e5cb2a3e1045a979
         ));
-        let contract = Address::from_str(&e, "CAESLMGW5LYTIEJI7FJHK6SFSWRELLNVX5Q4WR4UZEALMTRWQDBKDPAG");
+        let contract = Address::from_str(
+            &e,
+            "CAESLMGW5LYTIEJI7FJHK6SFSWRELLNVX5Q4WR4UZEALMTRWQDBKDPAG",
+        );
         let client = TokenClient::new(&e, &contract);
 
         std::println!("test two");

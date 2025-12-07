@@ -1,5 +1,5 @@
 [package]
-name = "soroban-ledger-snapshot-source-meta"
+name = "soroban-ledger-snapshot-source-tx"
 description = "SnapshotSource implementation that downloads ledger meta and searches for ledger entries"
 homepage = "https://github.com/stellar/rs-soroban-sdk"
 repository = "https://github.com/stellar/rs-soroban-sdk"
@@ -11,9 +11,9 @@ edition = "2021"
 rust-version.workspace = true
 
 [dependencies]
-soroban-ledger-meta-storage = { workspace = true }
-soroban-ledger-rpc = { workspace = true }
-soroban-ledger-history-archive = { workspace = true }
+soroban-ledger-fetch-from-meta-storage = { workspace = true }
+soroban-ledger-fetch-from-rpc = { workspace = true }
+soroban-ledger-fetch-from-history-archive = { workspace = true }
 soroban-sdk = { workspace = true, features = ["testutils"] }
 thiserror = "2.0"
 serde = { version = "1", features = ["derive"] }

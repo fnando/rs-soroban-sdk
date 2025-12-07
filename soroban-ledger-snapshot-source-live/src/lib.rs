@@ -1,4 +1,4 @@
-use soroban_ledger_rpc::{get_ledger_entry, parse_ledger_entry};
+use soroban_ledger_fetch_from_rpc::{get_ledger_entry, parse_ledger_entry};
 use soroban_sdk::{
     testutils::{HostError, SnapshotSource, SnapshotSourceInput},
     xdr::{LedgerEntry, LedgerKey, ScErrorCode, ScErrorType},
