@@ -46,6 +46,11 @@ pub enum MetaSnapshotError {
     CargoMetadata(#[from] cargo_metadata::Error),
 }
 
+/// Returns true if the ledger is a checkpoint ledger for the given checkpoint frequency.
+fn is_checkpoint_ledger(ledger: u32, checkpoint_frequency: u32) -> bool {
+    (ledger + 1) % checkpoint_frequency == 0
+}
+
 /// Get the workspace root directory using cargo metadata
 fn get_workspace_root() -> Result<PathBuf, MetaSnapshotError> {
     let metadata = MetadataCommand::new().exec()?;
@@ -160,7 +165,10 @@ impl MetaSnapshotSource {
         )
     }
 
-    fn fetch(&self, key: &LedgerKey) -> Result<Option<LedgerEntryWithTtl>, MetaSnapshotError> {
+    fn fetch_with_cache(
+        &self,
+        key: &LedgerKey,
+    ) -> Result<Option<LedgerEntryWithTtl>, MetaSnapshotError> {
         // TODO: Consider replacing this caching into a directory with caching into a
         // LedgerSnapshot file. It would be more compatible with existing functionality.
 
@@ -177,7 +185,7 @@ impl MetaSnapshotSource {
             ledger_cache_dir.join(format!("{:x}.json", key_hash)),
             |write| {
                 // Fetch the data
-                let result = self.fetch_internal(key)?;
+                let result = self.fetch(key)?;
 
                 // Serialize to JSON
                 serde_json::to_writer_pretty(write, &result)?;
@@ -190,10 +198,7 @@ impl MetaSnapshotSource {
         Ok(serde_json::from_reader(fetch_read)?)
     }
 
-    fn fetch_internal(
-        &self,
-        key: &LedgerKey,
-    ) -> Result<Option<LedgerEntryWithTtl>, MetaSnapshotError> {
+    fn fetch(&self, key: &LedgerKey) -> Result<Option<LedgerEntryWithTtl>, MetaSnapshotError> {
         eprintln!("looking up key {}", serde_json::to_string(key)?);
 
         let cache_path = ProjectDirs::from("org", "stellar", "soroban-sdk")
@@ -205,14 +210,20 @@ impl MetaSnapshotSource {
         // Calculate checkpoint boundaries
         let checkpoint_count = self.archive_checkpoint_ledger_count;
         let prev_checkpoint = ((self.ledger + 1) / checkpoint_count) * checkpoint_count - 1;
-        let ledgers_to_checkpoint = if self.ledger > prev_checkpoint {
-            self.ledger - prev_checkpoint
-        } else {
-            checkpoint_count
-        };
+        let ledgers_to_checkpoint = self.ledger - prev_checkpoint;
 
-        // Precache all ledgers from starting ledger down to the checkpoint
-        self.precache_ledgers(&cache_path, self.ledger, ledgers_to_checkpoint);
+        // Prefetch all meta for ledgers from starting ledger down to the checkpoint (in background)
+        let prefetch_cache_path = cache_path.clone();
+        let prefetch_meta_url = self.meta_url.clone();
+        let prefetch_start_ledger = self.ledger;
+        std::thread::spawn(move || {
+            Self::prefetch_meta(
+                &prefetch_meta_url,
+                &prefetch_cache_path,
+                prefetch_start_ledger,
+                ledgers_to_checkpoint,
+            );
+        });
 
         // Phase 1: Check the starting ledger
         eprintln!("loading ledger {}", self.ledger);
@@ -220,7 +231,7 @@ impl MetaSnapshotSource {
             return Ok(result);
         }
 
-        // Try RPC for the starting ledger
+        // Optimization: Try RPC for the starting ledger
         if let Some(result) = self.fetch_from_rpc(&cache_path, self.ledger, key)? {
             return Ok(result);
         }
@@ -228,34 +239,31 @@ impl MetaSnapshotSource {
         // Phase 2: Search through previous ledgers until we hit a checkpoint
         let mut ledger = self.ledger.saturating_sub(1);
         while ledger >= 3 {
-            // If this is a checkpoint ledger, switch to archive
-            if (ledger + 1) % checkpoint_count == 0 {
-                return self.fetch_from_archive(&cache_path, ledger, key);
+            // Stop after checking the checkpoint ledger
+            if is_checkpoint_ledger(ledger, checkpoint_count) {
+                break;
             }
-
             eprintln!("loading ledger {ledger}");
             if let Some(result) = self.fetch_from_meta(&cache_path, ledger, key)? {
                 return Ok(result);
             }
-
             ledger -= 1;
+        }
+
+        // Phase 3: Fetch from history archive at the checkpoint ledger
+        if ledger >= 3 && is_checkpoint_ledger(ledger, checkpoint_count) {
+            return self.fetch_from_archive(&cache_path, ledger, key);
         }
 
         Ok(None)
     }
 
-    fn precache_ledgers(&self, cache_path: &PathBuf, start_ledger: u32, count: u32) {
+    fn prefetch_meta(meta_url: &str, cache_path: &PathBuf, start_ledger: u32, count: u32) {
         use std::thread;
 
         let ledgers_to_cache: Vec<u32> = (0..count)
             .filter_map(|i| start_ledger.checked_sub(i))
-            .filter(|&l| l >= 3)
-            .filter(|&l| !cache_path.join(format!("ledger-{l}.xdr")).exists())
             .collect();
-
-        if ledgers_to_cache.is_empty() {
-            return;
-        }
 
         eprintln!(
             "precaching {} ledgers: {:?}",
@@ -269,7 +277,7 @@ impl MetaSnapshotSource {
             let handles: Vec<_> = chunk
                 .iter()
                 .map(|&l| {
-                    let meta_url = self.meta_url.clone();
+                    let meta_url = meta_url.to_string();
                     let path = cache_path.join(format!("ledger-{l}.xdr"));
                     thread::spawn(move || {
                         let _ = cache(path, |write| {
@@ -440,6 +448,9 @@ impl SnapshotSource for MetaSnapshotSource {
         &self,
         key: &Rc<LedgerKey>,
     ) -> Result<Option<(Rc<LedgerEntry>, Option<u32>)>, HostError> {
-        Ok(self.fetch(key).unwrap().map(|e| (Rc::new(e.entry), e.ttl)))
+        Ok(self
+            .fetch_with_cache(key)
+            .unwrap()
+            .map(|e| (Rc::new(e.entry), e.ttl)))
     }
 }
