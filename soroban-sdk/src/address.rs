@@ -390,6 +390,7 @@ impl crate::testutils::Address for Address {
 
 #[cfg(any(not(target_family = "wasm"), test, feature = "testutils"))]
 impl Address {
+    #[doc(hidden)]
     pub fn contract_id(&self) -> ContractId {
         let sc_address: ScAddress = self.try_into().unwrap();
         if let ScAddress::Contract(c) = sc_address {
@@ -399,6 +400,7 @@ impl Address {
         }
     }
 
+    #[doc(hidden)]
     pub fn from_contract_id(env: &Env, contract_id: [u8; 32]) -> Self {
         Self::try_from_val(env, &ScAddress::Contract(ContractId(Hash(contract_id)))).unwrap()
     }

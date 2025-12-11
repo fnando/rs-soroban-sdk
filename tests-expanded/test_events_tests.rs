@@ -597,8 +597,9 @@ mod test {
     extern crate std;
     use crate::{Contract, ContractClient, Transfer};
     use soroban_sdk::{
+        map, symbol_short,
         testutils::{Address as _, Events, MuxedAddress as _},
-        Address, Env, Event, MuxedAddress,
+        vec, Address, Env, Event, IntoVal, MuxedAddress, Symbol, Val,
     };
     extern crate test;
     #[rustc_test_marker = "test::test_event"]
@@ -609,9 +610,9 @@ mod test {
             ignore: false,
             ignore_message: ::core::option::Option::None,
             source_file: "tests/events/src/lib.rs",
-            start_line: 54usize,
+            start_line: 55usize,
             start_col: 8usize,
-            end_line: 54usize,
+            end_line: 55usize,
             end_col: 18usize,
             compile_fail: false,
             no_run: false,
@@ -639,7 +640,48 @@ mod test {
                 amount,
                 to_muxed_id: to.id(),
             }
-            .to_contract_event(&env, &contract_id)])),
+            .to_xdr(&env, &contract_id)])),
+        ) {
+            (left_val, right_val) => {
+                if !(*left_val == *right_val) {
+                    let kind = ::core::panicking::AssertKind::Eq;
+                    ::core::panicking::assert_failed(
+                        kind,
+                        &*left_val,
+                        &*right_val,
+                        ::core::option::Option::None,
+                    );
+                }
+            }
+        };
+        match (
+            &env.events().all(),
+            &::soroban_sdk::Vec::from_array(
+                &env,
+                [(
+                    contract_id.clone(),
+                    (Symbol::new(&env, "transfer"), &from, to.address()).into_val(&env),
+                    ::soroban_sdk::Map::from_array(
+                        &env,
+                        [
+                            (
+                                {
+                                    #[allow(deprecated)]
+                                    const SYMBOL: soroban_sdk::Symbol =
+                                        soroban_sdk::Symbol::short("amount");
+                                    SYMBOL
+                                },
+                                <_ as IntoVal<Env, Val>>::into_val(&1i128, &env),
+                            ),
+                            (
+                                Symbol::new(&env, "to_muxed_id"),
+                                <_ as IntoVal<Env, Val>>::into_val(&to.id().unwrap(), &env),
+                            ),
+                        ],
+                    )
+                    .to_val(),
+                )],
+            ),
         ) {
             (left_val, right_val) => {
                 if !(*left_val == *right_val) {
@@ -663,9 +705,9 @@ mod test {
             ignore: false,
             ignore_message: ::core::option::Option::None,
             source_file: "tests/events/src/lib.rs",
-            start_line: 78usize,
+            start_line: 105usize,
             start_col: 8usize,
-            end_line: 78usize,
+            end_line: 105usize,
             end_col: 35usize,
             compile_fail: false,
             no_run: false,
@@ -693,7 +735,45 @@ mod test {
                 amount,
                 to_muxed_id: None,
             }
-            .to_contract_event(&env, &contract_id)])),
+            .to_xdr(&env, &contract_id)])),
+        ) {
+            (left_val, right_val) => {
+                if !(*left_val == *right_val) {
+                    let kind = ::core::panicking::AssertKind::Eq;
+                    ::core::panicking::assert_failed(
+                        kind,
+                        &*left_val,
+                        &*right_val,
+                        ::core::option::Option::None,
+                    );
+                }
+            }
+        };
+        match (
+            &env.events().all(),
+            &::soroban_sdk::Vec::from_array(
+                &env,
+                [(
+                    contract_id.clone(),
+                    (Symbol::new(&env, "transfer"), &from, &to).into_val(&env),
+                    ::soroban_sdk::Map::from_array(
+                        &env,
+                        [
+                            (
+                                {
+                                    #[allow(deprecated)]
+                                    const SYMBOL: soroban_sdk::Symbol =
+                                        soroban_sdk::Symbol::short("amount");
+                                    SYMBOL
+                                },
+                                <_ as IntoVal<Env, Val>>::into_val(&1i128, &env),
+                            ),
+                            (Symbol::new(&env, "to_muxed_id"), ().into_val(&env)),
+                        ],
+                    )
+                    .to_val(),
+                )],
+            ),
         ) {
             (left_val, right_val) => {
                 if !(*left_val == *right_val) {
@@ -717,9 +797,9 @@ mod test {
             ignore: false,
             ignore_message: ::core::option::Option::None,
             source_file: "tests/events/src/lib.rs",
-            start_line: 102usize,
+            start_line: 152usize,
             start_col: 8usize,
-            end_line: 102usize,
+            end_line: 152usize,
             end_col: 47usize,
             compile_fail: false,
             no_run: false,
