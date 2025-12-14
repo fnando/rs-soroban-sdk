@@ -15,6 +15,7 @@ members = [
     "soroban-ledger-fetch-from/rpc",
     "soroban-ledger-fetch-from/meta-storage",
     "soroban-ledger-fetch-from/history-archive",
+    "soroban-ledger-fetch",
     "soroban-ledger-snapshot-source-live",
     "soroban-ledger-snapshot-source-tx",
 
@@ -39,6 +40,7 @@ stellar-asset-spec = { version = "23.2.1", path = "stellar-asset-spec" }
 soroban-ledger-fetch-from-rpc = { version = "=23.2.1", path = "soroban-ledger-fetch-from/rpc" }
 soroban-ledger-fetch-from-meta-storage = { version = "=23.2.1", path = "soroban-ledger-fetch-from/meta-storage" }
 soroban-ledger-fetch-from-history-archive = { version = "=23.2.1", path = "soroban-ledger-fetch-from/history-archive" }
+soroban-ledger-fetch = { version = "23.2.1", path = "soroban-ledger-fetch" }
 soroban-ledger-snapshot-source-live = { version = "23.2.1", path = "soroban-ledger-snapshot-source-live" }
 soroban-ledger-snapshot-source-tx = { version = "23.2.1", path = "soroban-ledger-snapshot-source-tx" }
 

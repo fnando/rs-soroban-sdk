@@ -11,14 +11,9 @@ edition = "2021"
 rust-version.workspace = true
 
 [dependencies]
-soroban-ledger-fetch-from-meta-storage = { workspace = true }
-soroban-ledger-fetch-from-rpc = { workspace = true }
-soroban-ledger-fetch-from-history-archive = { workspace = true }
+soroban-ledger-fetch = { workspace = true }
 soroban-sdk = { workspace = true, features = ["testutils"] }
-thiserror = "2.0"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-sha2 = "0.10"
-directories = "6.0"
-fs2 = "0.4"
 cargo_metadata = "0.19"
+directories = "6.0"
+sha2 = "0.10"
+serde_json = "1"

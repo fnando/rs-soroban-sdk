@@ -2319,6 +2319,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "soroban-ledger-fetch"
+version = "23.2.1"
+dependencies = [
+ "fs2",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "soroban-ledger-fetch-from-history-archive",
+ "soroban-ledger-fetch-from-meta-storage",
+ "soroban-ledger-fetch-from-rpc",
+ "soroban-sdk",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "soroban-ledger-fetch-from-history-archive"
 version = "23.2.1"
 dependencies = [
@@ -2381,15 +2397,10 @@ version = "23.2.1"
 dependencies = [
  "cargo_metadata",
  "directories",
- "fs2",
- "serde",
  "serde_json",
  "sha2",
- "soroban-ledger-fetch-from-history-archive",
- "soroban-ledger-fetch-from-meta-storage",
- "soroban-ledger-fetch-from-rpc",
+ "soroban-ledger-fetch",
  "soroban-sdk",
- "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -2746,6 +2757,7 @@ name = "test_fork"
 version = "23.2.1"
 dependencies = [
  "bytes-lit",
+ "soroban-ledger-fetch",
  "soroban-ledger-snapshot-source-tx",
  "soroban-sdk",
  "url",
